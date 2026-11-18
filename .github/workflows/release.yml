@@ -56,7 +56,7 @@ jobs:
           python3 -m unittest discover -s tools/ci/tests
           make -C tools/ci/host-tests check
           (cd tools/stm32h7rs-tool && go vet ./... && go test ./...)
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           set -o pipefail
           (cd tools/stm32h7rs-tool && $(go env GOPATH)/bin/govulncheck ./...) | tee ../govulncheck.txt
       - name: Build MCUboot and loaders
