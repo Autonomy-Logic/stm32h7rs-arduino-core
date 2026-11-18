@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (c) Autonomy Logic
 # SPDX-License-Identifier: Apache-2.0
 # Checks the committed layout.json against the MCUboot build and every loader build: rules, freshness, agreement
 # between builds on every shared partition and the retention region, and the boards.txt image values.
