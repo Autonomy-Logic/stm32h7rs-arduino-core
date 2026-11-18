@@ -1,0 +1,146 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  ARDUINO_CLI_VERSION: 1.3.1
+  ZEPHYR_SDK_VERSION: 1.0.1
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: stm32h7rs-arduino-core
+          fetch-depth: 0
+      - name: The tag must be on main
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+          cache-dependency-path: '**/go.sum'
+      - name: Install host tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler jq rsync
+      - name: West workspace
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install west imgtool protobuf grpcio-tools jsonschema
+          west init -l .
+          west config manifest.project-filter -- "-hal_.*,+hal_stm32"
+          west update --narrow -o=--depth=1
+          pip install -r ../zephyr/scripts/requirements-base.txt
+          west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+          west blobs fetch arduino-api --auto-accept
+          west manifest --resolve --active-only > ../resolved-manifest.yml
+          python3 tools/ci/check_west_pins.py ../resolved-manifest.yml
+      - name: Unit, host and Go tests; Go advisories
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          python3 -m unittest discover -s tools/ci/tests
+          make -C tools/ci/host-tests check
+          (cd tools/stm32h7rs-tool && go vet ./... && go test ./...)
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          (cd tools/stm32h7rs-tool && $(go env GOPATH)/bin/govulncheck ./...) | tee ../govulncheck.txt
+      - name: Build MCUboot and loaders
+        working-directory: stm32h7rs-arduino-core
+        env:
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          PINNED_CORE_VERSION: ${{ env.VERSION }}
+        run: |
+          source venv/bin/activate
+          ./bootloader/build.sh
+          python3 tools/ci/check_mcuboot_config.py build/mcuboot/zephyr/.config
+          python3 tools/ci/check_mcuboot_size.py --bin build/mcuboot/zephyr/zephyr.bin --map build/mcuboot/zephyr/zephyr.map
+          extra/build.sh stm32h7s7
+          extra/build.sh sl_visu_5r
+          for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
+            python3 tools/ci/check_loader_config.py firmwares/zephyr-$v.config
+          done
+      - name: Assemble the release directory
+        working-directory: stm32h7rs-arduino-core
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          source venv/bin/activate
+          tools/ci/build_release.sh $VERSION https://github.com/Autonomy-Logic/stm32h7rs-arduino-core/releases/download/v$VERSION distrib/release
+      - name: Install from a localized index into an empty arduino-cli and compile
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          source venv/bin/activate
+          mkdir -p $RUNNER_TEMP/bin
+          curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz | tar -xz -C $RUNNER_TEMP/bin arduino-cli
+          mkdir -p $RUNNER_TEMP/local
+          cp distrib/release/* $RUNNER_TEMP/local/
+          python3 tools/ci/gen_index.py --dir $RUNNER_TEMP/local --version $VERSION --base-url http://127.0.0.1:8765 \
+            --board "STM32H7S7 (generic)" --board "Synergy Logic SL-VISU-5R" \
+            --out $RUNNER_TEMP/local/package_AutonomyLogic_stm32h7rs_index.json
+          (cd $RUNNER_TEMP/local && python3 -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 2
+          export ARDUINO_DIRECTORIES_DATA=$RUNNER_TEMP/data ARDUINO_DIRECTORIES_USER=$RUNNER_TEMP/user
+          export ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS=http://127.0.0.1:8765/package_AutonomyLogic_stm32h7rs_index.json
+          A=$RUNNER_TEMP/bin/arduino-cli
+          $A core update-index
+          $A core install AutonomyLogic:zephyr_h7rs@$VERSION
+          for b in stm32h7s7 sl_visu_5r; do
+            $A compile -b AutonomyLogic:zephyr_h7rs:$b --output-dir $RUNNER_TEMP/out-$b tools/ci/sketches/blink
+            imgtool verify -k bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem $RUNNER_TEMP/out-$b/blink.ino.signed.bin
+          done
+          python3 - $RUNNER_TEMP/out-sl_visu_5r/blink.ino.signed.bin distrib/release/stm32h7rs-invalid-test-image.bin <<'EOF'
+          import sys
+          data = bytearray(open(sys.argv[1], "rb").read())
+          data[0x00080000 + 64] ^= 0xFF
+          open(sys.argv[2], "wb").write(data)
+          EOF
+          if imgtool verify -k bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem distrib/release/stm32h7rs-invalid-test-image.bin; then
+            echo "the invalid test image verifies"; exit 1
+          fi
+          (cd distrib/release && sha256sum -- * > SHA256SUMS.txt)
+      - name: Release notes
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          {
+            echo "STM32H7S7 core $VERSION (proof of concept)."
+            echo
+            echo "Install: add https://github.com/Autonomy-Logic/stm32h7rs-arduino-core/releases/download/v$VERSION/package_AutonomyLogic_stm32h7rs_index.json"
+            echo "to the board manager URLs and install AutonomyLogic:zephyr_h7rs@$VERSION."
+            echo
+            echo "## Pinned dependencies"
+            echo '```'
+            grep -E '^\s*-?\s*(name|revision):' ../resolved-manifest.yml | paste - - | grep -E 'zephyr|mcuboot|hal_stm32|zcbor' || true
+            echo '```'
+            echo
+            echo "## Advisory check ($(date -u +%Y-%m-%d))"
+            echo "- Go dependencies of stm32h7rs-tool: govulncheck output below."
+            echo "- MCUboot GHSA-8rcq-2mgr-fhp8 (serial recovery image number): mitigated, MCUboot is built in single application slot mode (checked by CI)."
+            echo "- MCUboot CVE-2026-128091 (TinyCrypt AES key schedule): not applicable, no image encryption."
+            echo '```'
+            cat ../govulncheck.txt
+            echo '```'
+            echo
+            echo "## Signing key"
+            echo "Images are signed with bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem, a published development key:"
+            echo "it proves integrity, not authenticity, and is for the proof of concept only, never for production."
+          } > ../release-notes.md
+      - name: Publish the release
+        working-directory: stm32h7rs-arduino-core
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" distrib/release/* --title "STM32H7S7 core $VERSION" --notes-file ../release-notes.md

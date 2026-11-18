@@ -26,7 +26,8 @@ jobs:
           python-version: '3.12'
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.22'
+          go-version: '1.25'
+          cache-dependency-path: '**/go.sum'
       - name: CI check script tests
         run: python3 -m unittest discover -s tools/ci/tests -v
       - name: Host tests (EthernetServer client table)
@@ -50,7 +51,8 @@ jobs:
           python-version: '3.12'
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.22'
+          go-version: '1.25'
+          cache-dependency-path: '**/go.sum'
       - name: Install host tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler jq rsync
       - name: Cache west modules and Zephyr SDK
@@ -129,7 +131,7 @@ jobs:
           arduino/bin/arduino-cli core install arduino:zephyr_contrib@1.1.0
       - name: Compile sketches into signed images
         run: |
-          props="--build-property build.stm32h7rs_tool=$GITHUB_WORKSPACE/arduino/bin/stm32h7rs-tool --build-property tools.imgtool.path=$GITHUB_WORKSPACE/stm32h7rs-arduino-core/venv/bin"
+          props="--build-property build.stm32h7rs_tool=$GITHUB_WORKSPACE/arduino/bin/stm32h7rs-tool"
           s=stm32h7rs-arduino-core/tools/ci/sketches
           arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:stm32h7s7 $props --output-dir out/generic-blink $s/blink
           arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:sl_visu_5r $props --output-dir out/sv5-blink $s/blink
@@ -148,6 +150,24 @@ jobs:
           open("/tmp/tampered.bin", "wb").write(data)
           EOF
           if imgtool verify -k $key /tmp/tampered.bin; then echo "tampered image verified"; exit 1; fi
+      - name: Release rehearsal (archive, tools, index; install into an empty arduino-cli and compile)
+        working-directory: stm32h7rs-arduino-core
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          source venv/bin/activate
+          tools/ci/build_release.sh 0.1.0 http://127.0.0.1:8765 distrib/rehearsal
+          (cd distrib/rehearsal && python3 -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 2
+          export ARDUINO_DIRECTORIES_DATA=$RUNNER_TEMP/fresh/data ARDUINO_DIRECTORIES_USER=$RUNNER_TEMP/fresh/user
+          export ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS=http://127.0.0.1:8765/package_AutonomyLogic_stm32h7rs_index.json
+          A=$GITHUB_WORKSPACE/arduino/bin/arduino-cli
+          $A core update-index
+          $A core install AutonomyLogic:zephyr_h7rs@0.1.0
+          for b in stm32h7s7 sl_visu_5r; do
+            $A compile -b AutonomyLogic:zephyr_h7rs:$b --output-dir $RUNNER_TEMP/rehearsal-$b tools/ci/sketches/blink
+            imgtool verify -k bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem $RUNNER_TEMP/rehearsal-$b/blink.ino.signed.bin
+          done
       - name: Artefacts
         uses: actions/upload-artifact@v7
         with:

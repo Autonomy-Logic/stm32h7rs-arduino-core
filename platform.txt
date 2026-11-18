@@ -400,3 +400,11 @@ debug.cortex-debug.custom.overrideRestartCommands.2=c
 debug.server.openocd.path={runtime.tools.openocd-0.12.0-arduino1-static.path}/bin/openocd
 debug.server.openocd.scripts_dir={runtime.tools.openocd-0.12.0-arduino1-static.path}/share/openocd/scripts/
 build.stm32h7rs_tool={runtime.tools.stm32h7rs-tool.path}/stm32h7rs-tool
+
+# Upload over USB to MCUboot serial recovery (STM32H7S7 core)
+tools.stm32h7rs.path={runtime.tools.stm32h7rs-tool.path}
+tools.stm32h7rs.cmd=stm32h7rs-tool
+tools.stm32h7rs.upload.params.verbose=
+tools.stm32h7rs.upload.params.quiet=
+tools.stm32h7rs.upload.pattern="{path}/{cmd}" upload --port "{serial.port}" "{build.path}/{build.project_name}.signed.bin"
+tools.stm32h7rs.upload.pattern.windows="{path}/{cmd}.exe" upload --port "{serial.port}" "{build.path}/{build.project_name}.signed.bin"

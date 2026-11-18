@@ -30,6 +30,17 @@ device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concep
 - A new device needs a board variant (`boards/autonomylogic/stm32h7s7_core/<device>.dtsi` and its DTS) for what Zephyr
   must drive, an Arduino variant under `variants/`, and a `boards.txt` entry; its behaviour lives in its package HAL.
 
+## Install and upload
+
+- Board manager URL (one per release):
+  `https://github.com/Autonomy-Logic/stm32h7rs-arduino-core/releases/download/v<version>/package_AutonomyLogic_stm32h7rs_index.json`,
+  then install `AutonomyLogic:zephyr_h7rs`.
+- A unit needs MCUboot once (`docs/mcuboot-install-requirement.md`). After that, uploads go over USB: the build
+  produces `{sketch}.signed.bin` and `stm32h7rs-tool upload` sends it to MCUboot serial recovery.
+- Recovery is entered by the 1200 bps request the upload makes, or automatically when no valid program is installed.
+- `tools/stm32h7rs-tool`: `merge`, `sign`, `upload`, `list`, `reset`; `stm32h7rs-abuse` holds the lab abuse checks
+  (`docs/lab-test-guide.md`). Releases are built by `.github/workflows/release.yml` from a `v*` tag on `main`.
+
 The original upstream README follows.
 
 ---
