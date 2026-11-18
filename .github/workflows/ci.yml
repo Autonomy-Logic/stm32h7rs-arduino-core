@@ -97,6 +97,7 @@ jobs:
         env:
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          PINNED_CORE_VERSION: 0.1.0
         run: |
           extra/build.sh stm32h7s7
           extra/build.sh sl_visu_5r
