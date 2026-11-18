@@ -564,4 +564,27 @@ FORCE_EXPORT_SYM(regulator_enable);
 FORCE_EXPORT_SYM(regulator_disable);
 #endif
 
+#if defined(CONFIG_RETENTION_BOOT_MODE)
+FORCE_EXPORT_SYM(bootmode_set);
+#endif
+
+#if defined(CONFIG_REBOOT)
+FORCE_EXPORT_SYM(sys_reboot);
+#endif
+
+#if defined(CONFIG_ARDUINO_STM32_DISPLAY_HAL)
+#include <soc.h>
+EXPORT_SYMBOL(HAL_LTDC_Init);
+EXPORT_SYMBOL(HAL_LTDC_DeInit);
+EXPORT_SYMBOL(HAL_LTDC_ConfigLayer);
+EXPORT_SYMBOL(HAL_LTDC_SetAddress);
+EXPORT_SYMBOL(HAL_LTDC_SetPixelFormat);
+EXPORT_SYMBOL(HAL_LTDC_Reload);
+EXPORT_SYMBOL(HAL_DMA2D_Init);
+EXPORT_SYMBOL(HAL_DMA2D_DeInit);
+EXPORT_SYMBOL(HAL_DMA2D_ConfigLayer);
+EXPORT_SYMBOL(HAL_DMA2D_Start);
+EXPORT_SYMBOL(HAL_DMA2D_PollForTransfer);
+#endif
+
 EXPORT_SYMBOL(sketch_header_v1_verify);

@@ -11,51 +11,69 @@ on:
 permissions:
   contents: read
 
+env:
+  ARDUINO_CLI_VERSION: 1.3.1
+  ZEPHYR_SDK_VERSION: 1.0.1
+
 jobs:
-  check-scripts:
-    name: CI check script tests
+  unit-tests:
+    name: Check scripts, host and Go tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Unit tests of tools/ci
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.22'
+      - name: CI check script tests
         run: python3 -m unittest discover -s tools/ci/tests -v
+      - name: Host tests (EthernetServer client table)
+        run: make -C tools/ci/host-tests check
+      - name: stm32h7rs-tool tests
+        working-directory: tools/stm32h7rs-tool
+        run: |
+          go vet ./...
+          go test ./...
 
-  mcuboot:
-    name: MCUboot build and checks
+  build:
+    name: MCUboot, loaders and sketches
     runs-on: ubuntu-24.04
-    needs: check-scripts
+    needs: unit-tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: stm32h7rs-arduino-core
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.22'
       - name: Install host tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler jq rsync
       - name: Cache west modules and Zephyr SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             zephyr
             bootloader
             modules
             zephyr-sdk
-          key: west-${{ hashFiles('stm32h7rs-arduino-core/west.yml') }}-sdk-1.0.1
+          key: west-${{ hashFiles('stm32h7rs-arduino-core/west.yml') }}-sdk-${{ env.ZEPHYR_SDK_VERSION }}
       - name: West workspace
         working-directory: stm32h7rs-arduino-core
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install west imgtool
+          pip install west imgtool protobuf grpcio-tools jsonschema
           [ -d ../.west ] || west init -l .
           west config manifest.project-filter -- "-hal_.*,+hal_stm32"
           west update --narrow -o=--depth=1
           pip install -r ../zephyr/scripts/requirements-base.txt
-          [ -d ../zephyr-sdk ] || west sdk install --version 1.0.1 -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+          [ -d ../zephyr-sdk ] || west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+          west blobs fetch arduino-api --auto-accept
       - name: Dependencies pinned by commit
         working-directory: stm32h7rs-arduino-core
         run: |
@@ -69,23 +87,72 @@ jobs:
         run: |
           source venv/bin/activate
           ./bootloader/build.sh
-      - name: MCUboot configuration (single slot, recovery entries, signature)
-        working-directory: stm32h7rs-arduino-core
-        run: python3 tools/ci/check_mcuboot_config.py build/mcuboot/zephyr/.config
-      - name: MCUboot size
-        working-directory: stm32h7rs-arduino-core
-        run: python3 tools/ci/check_mcuboot_size.py --bin build/mcuboot/zephyr/zephyr.bin --map build/mcuboot/zephyr/zephyr.map
-      - name: Flash layout rules and freshness
+      - name: MCUboot configuration and size
         working-directory: stm32h7rs-arduino-core
         run: |
-          python3 tools/ci/gen_layout.py build/mcuboot/zephyr/zephyr.dts --out /tmp/layout.json
-          python3 tools/ci/check_layout.py tools/ci/layout.json --fresh /tmp/layout.json
-      - name: MCUboot artefacts
-        uses: actions/upload-artifact@v4
+          python3 tools/ci/check_mcuboot_config.py build/mcuboot/zephyr/.config
+          python3 tools/ci/check_mcuboot_size.py --bin build/mcuboot/zephyr/zephyr.bin --map build/mcuboot/zephyr/zephyr.map
+      - name: Build loaders
+        working-directory: stm32h7rs-arduino-core
+        env:
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: |
+          extra/build.sh stm32h7s7
+          extra/build.sh sl_visu_5r
+      - name: Loader network features and thread priorities
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
+            python3 tools/ci/check_loader_config.py firmwares/zephyr-$v.config
+          done
+      - name: Flash layout, freshness and boards.txt values
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          hs=$(grep '^CONFIG_ROM_START_OFFSET=' firmwares/zephyr-stm32h7s7_core_stm32h7s7xx_sl_visu_5r.config | cut -d= -f2)
+          for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
+            python3 tools/ci/gen_layout.py build/mcuboot/zephyr/zephyr.dts firmwares/zephyr-$v.dts --header-size $hs --out /tmp/layout-$v.json
+            python3 tools/ci/check_layout.py tools/ci/layout.json --fresh /tmp/layout-$v.json --boards boards.txt --board stm32h7s7 --board sl_visu_5r
+          done
+      - name: arduino-cli with the working-tree core
+        run: |
+          mkdir -p arduino/bin arduino/sketchbook/hardware/AutonomyLogic
+          curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz | tar -xz -C arduino/bin arduino-cli
+          echo "ARDUINO_DIRECTORIES_DATA=$GITHUB_WORKSPACE/arduino/data" >> $GITHUB_ENV
+          echo "ARDUINO_DIRECTORIES_USER=$GITHUB_WORKSPACE/arduino/sketchbook" >> $GITHUB_ENV
+          ln -s $GITHUB_WORKSPACE/stm32h7rs-arduino-core arduino/sketchbook/hardware/AutonomyLogic/zephyr_h7rs
+          (cd stm32h7rs-arduino-core/tools/stm32h7rs-tool && go build -o $GITHUB_WORKSPACE/arduino/bin/stm32h7rs-tool ./cmd/stm32h7rs-tool)
+      - name: Toolchain from Arduino's index
+        run: |
+          arduino/bin/arduino-cli core update-index
+          arduino/bin/arduino-cli core install arduino:zephyr_contrib@1.1.0
+      - name: Compile sketches into signed images
+        run: |
+          props="--build-property build.stm32h7rs_tool=$GITHUB_WORKSPACE/arduino/bin/stm32h7rs-tool --build-property tools.imgtool.path=$GITHUB_WORKSPACE/stm32h7rs-arduino-core/venv/bin"
+          s=stm32h7rs-arduino-core/tools/ci/sketches
+          arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:stm32h7s7 $props --output-dir out/generic-blink $s/blink
+          arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:sl_visu_5r $props --output-dir out/sv5-blink $s/blink
+          arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:sl_visu_5r $props --output-dir out/sv5-hal-api $s/sl_visu_5r_hal_api
+      - name: Signed images verify with the development key, a tampered one does not
+        run: |
+          source stm32h7rs-arduino-core/venv/bin/activate
+          key=stm32h7rs-arduino-core/bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem
+          for d in generic-blink sv5-blink sv5-hal-api; do
+            imgtool verify -k $key out/$d/*.signed.bin
+          done
+          python3 - out/sv5-blink/*.signed.bin <<'EOF'
+          import sys
+          data = bytearray(open(sys.argv[1], "rb").read())
+          data[0x00080000 + 64] ^= 0xFF
+          open("/tmp/tampered.bin", "wb").write(data)
+          EOF
+          if imgtool verify -k $key /tmp/tampered.bin; then echo "tampered image verified"; exit 1; fi
+      - name: Artefacts
+        uses: actions/upload-artifact@v7
         with:
-          name: mcuboot-stm32h7s7-core
+          name: stm32h7s7-core-images
           path: |
             stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.bin
             stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.hex
-            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.map
-            stm32h7rs-arduino-core/build/mcuboot/zephyr/.config
+            stm32h7rs-arduino-core/firmwares/
+            out/

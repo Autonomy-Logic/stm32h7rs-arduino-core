@@ -2,14 +2,15 @@
   "devices": {
     "ext_flash": {
       "erase_block": "0x00001000",
-      "size": "0x01000000",
       "start": "0x70000000"
     },
     "flash0": {
       "erase_block": "0x00002000",
-      "size": "0x00010000",
       "start": "0x08000000"
     }
+  },
+  "image": {
+    "header_size": "0x00000400"
   },
   "partitions": {
     "boot_partition": {
@@ -24,11 +25,23 @@
       "size": "0x00010000",
       "start": "0x70800000"
     },
+    "loader_partition": {
+      "device": "ext_flash",
+      "offset": "0x00000000",
+      "size": "0x00080000",
+      "start": "0x70000000"
+    },
     "slot0_partition": {
       "device": "ext_flash",
       "offset": "0x00000000",
       "size": "0x00800000",
       "start": "0x70000000"
+    },
+    "user_sketch": {
+      "device": "ext_flash",
+      "offset": "0x00080000",
+      "size": "0x00780000",
+      "start": "0x70080000"
     }
   },
   "retention": {

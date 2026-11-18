@@ -1,0 +1,14 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * SL-VISU-5R variant: the shared Arduino mapping, Wire on I2C1 (PB8/PB9) and Serial1 on USART3 (PC10/PC11).
+ */
+
+#include "../stm32h7s7_core_common/stm32h7s7_core_variant.dtsi"
+
+/ {
+	zephyr,user {
+		i2cs = <&i2c1>;
+		serials = <&usart3>;
+	};
+};

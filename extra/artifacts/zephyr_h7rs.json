@@ -1,0 +1,5 @@
+{
+  "name": "STM32H7S7 core",
+  "architecture": "zephyr_h7rs",
+  "category": "Contributed"
+}

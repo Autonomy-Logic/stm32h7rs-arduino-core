@@ -26,6 +26,22 @@ config ARDUINO_API_SERIAL_BUFFER_SIZE
 	int "Buffer size for Arduino Serial API"
 	default 1024
 
+config ARDUINO_ETHERNET_KEEP_DRIVER_MAC
+	bool "Ethernet.begin() keeps the MAC address set by the Ethernet driver"
+	default n
+	help
+	  Ethernet.begin() ignores the MAC address passed by the sketch, so the interface keeps the
+	  address its driver chose at init (on STM32, derived from the chip's unique ID).
+
+config ARDUINO_STM32_DISPLAY_HAL
+	bool "Build ST's LTDC and DMA2D HAL into the loader for sketches"
+	depends on SOC_FAMILY_STM32
+	select USE_STM32_HAL_LTDC
+	select USE_STM32_HAL_DMA2D
+	help
+	  Lets a sketch or board HAL drive the LTDC display controller and the DMA2D engine with
+	  ST's HAL, so panel set-up stays outside the core.
+
 config ARDUINO_ENTRY
 	bool "Provide arduino setup and loop entry points"
 	default y

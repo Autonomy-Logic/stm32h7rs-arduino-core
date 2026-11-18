@@ -67,6 +67,58 @@ class GenLayoutTest(unittest.TestCase):
         self.assertEqual(gl.dumps(good_layout()), gl.dumps(good_layout()))
 
 
+def with_loader(layout):
+    layout = copy.deepcopy(layout)
+    layout["partitions"]["loader_partition"] = {
+        "device": "ext_flash", "offset": "0x00000000", "start": "0x70000000", "size": "0x00080000",
+    }
+    layout["partitions"]["user_sketch"] = {
+        "device": "ext_flash", "offset": "0x00080000", "start": "0x70080000", "size": "0x00780000",
+    }
+    layout["image"] = {"header_size": "0x00000400"}
+    return layout
+
+
+BOARDS = """
+sl_visu_5r.build.image.sketch_offset=0x00080000
+sl_visu_5r.build.image.header_size=0x400
+sl_visu_5r.build.image.slot_size=0x00800000
+"""
+
+
+class LoaderLayoutTest(unittest.TestCase):
+    def test_loader_layout_passes(self):
+        self.assertEqual(cl.check(with_loader(good_layout())), [])
+
+    def test_user_sketch_overlapping_loader_fails(self):
+        layout = with_loader(good_layout())
+        layout["partitions"]["user_sketch"]["offset"] = "0x00070000"
+        layout["partitions"]["user_sketch"]["start"] = "0x70070000"
+        self.assertTrue(any("user_sketch" in e for e in cl.check(layout)))
+
+    def test_loader_not_at_slot_start_fails(self):
+        layout = with_loader(good_layout())
+        layout["partitions"]["loader_partition"]["offset"] = "0x00001000"
+        layout["partitions"]["loader_partition"]["start"] = "0x70001000"
+        self.assertTrue(any("loader_partition" in e for e in cl.check(layout)))
+
+    def test_boards_values_match(self):
+        self.assertEqual(cl.check_boards(with_loader(good_layout()), BOARDS, "sl_visu_5r"), [])
+
+    def test_boards_sketch_offset_mismatch_fails(self):
+        boards = BOARDS.replace("sketch_offset=0x00080000", "sketch_offset=0x00180000")
+        errors = cl.check_boards(with_loader(good_layout()), boards, "sl_visu_5r")
+        self.assertTrue(any("sketch_offset" in e for e in errors), errors)
+
+    def test_boards_header_mismatch_fails(self):
+        boards = BOARDS.replace("header_size=0x400", "header_size=0x200")
+        errors = cl.check_boards(with_loader(good_layout()), boards, "sl_visu_5r")
+        self.assertTrue(any("header_size" in e for e in errors), errors)
+
+    def test_boards_missing_board_fails(self):
+        self.assertTrue(cl.check_boards(with_loader(good_layout()), BOARDS, "other"))
+
+
 class CheckLayoutTest(unittest.TestCase):
     def test_good_layout_passes(self):
         self.assertEqual(cl.check(good_layout()), [])

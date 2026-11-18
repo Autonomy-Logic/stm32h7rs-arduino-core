@@ -10,8 +10,14 @@
 #include "SocketHelpers.h"
 #include <zephyr/net/ethernet.h>
 #include "ZephyrClient.h"
+#include "ZephyrServer.h"
+#include "ClientTable.h"
 
-#if DT_HAS_COMPAT_STATUS_OKAY(ethernet_phy)
+#ifndef ETHERNET_SERVER_MAX_CLIENTS
+#define ETHERNET_SERVER_MAX_CLIENTS 3
+#endif
+
+#if DT_HAS_COMPAT_STATUS_OKAY(ethernet_phy) || DT_HAS_COMPAT_STATUS_OKAY(microchip_ksz8081)
 using EthernetClient = ZephyrClient;
 
 enum EthernetLinkStatus {
@@ -67,5 +73,29 @@ public:
 };
 
 extern EthernetClass Ethernet;
+
+/**
+ * Arduino-style TCP server: available() returns a connected client that has data to read, so a sketch polling it
+ * serves several connections; at most ETHERNET_SERVER_MAX_CLIENTS are kept, and a connection beyond that is closed.
+ */
+class EthernetServer : public ZephyrServer {
+public:
+	explicit EthernetServer(uint16_t port) : ZephyrServer(port) {
+	}
+
+	EthernetClient available() {
+		for (size_t i = 0; i < ETHERNET_SERVER_MAX_CLIENTS + 1; i++) {
+			EthernetClient incoming = ZephyrServer::accept();
+			if (!incoming) {
+				break;
+			}
+			_clients.admit(incoming);
+		}
+		return _clients.pick();
+	}
+
+private:
+	ClientTable<EthernetClient, ETHERNET_SERVER_MAX_CLIENTS> _clients;
+};
 
 #endif

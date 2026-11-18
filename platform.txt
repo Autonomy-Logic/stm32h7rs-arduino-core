@@ -399,3 +399,4 @@ debug.cortex-debug.custom.overrideRestartCommands.2=c
 
 debug.server.openocd.path={runtime.tools.openocd-0.12.0-arduino1-static.path}/bin/openocd
 debug.server.openocd.scripts_dir={runtime.tools.openocd-0.12.0-arduino1-static.path}/share/openocd/scripts/
+build.stm32h7rs_tool={runtime.tools.stm32h7rs-tool.path}/stm32h7rs-tool

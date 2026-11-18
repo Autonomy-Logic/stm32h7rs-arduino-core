@@ -11,7 +11,7 @@
 #include <zephyrClockInit.hpp>
 #include <zephyrPinctrl.h>
 
-#if DT_HAS_COMPAT_STATUS_OKAY(ethernet_phy)
+#if DT_HAS_COMPAT_STATUS_OKAY(ethernet_phy) || DT_HAS_COMPAT_STATUS_OKAY(microchip_ksz8081)
 
 /* Internal Zephyr entry point for initializing network interfaces, not visible here. */
 extern "C" void net_if_init(void);
@@ -38,7 +38,9 @@ int EthernetClass::begin(uint8_t *mac, unsigned long timeout, unsigned long resp
 	if (hardwareStatus() != EthernetOk) {
 		return 0;
 	}
+#if !defined(CONFIG_ARDUINO_ETHERNET_KEEP_DRIVER_MAC)
 	setMACAddress(mac);
+#endif
 	return NetworkInterface::begin();
 }
 
@@ -75,7 +77,9 @@ int EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress ga
 	if (hardwareStatus() != EthernetOk) {
 		return 0;
 	}
+#if !defined(CONFIG_ARDUINO_ETHERNET_KEEP_DRIVER_MAC)
 	setMACAddress(mac);
+#endif
 	config(ip, dns, gateway, subnet);
 	return 1;
 }

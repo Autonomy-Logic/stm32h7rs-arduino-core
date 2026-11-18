@@ -54,8 +54,41 @@ def check(layout: Layout) -> List[str]:
         _span(slot0)[0] <= _span(parts["user_sketch"])[0] and _span(parts["user_sketch"])[1] <= _span(slot0)[1]
     ):
         errors.append("user_sketch is not inside slot0_partition")
+    if "loader_partition" in parts:
+        loader = _span(parts["loader_partition"])
+        if loader[0] != _span(slot0)[0]:
+            errors.append("loader_partition must start at the start of slot0_partition")
+        if "user_sketch" in parts and _span(parts["user_sketch"])[0] < loader[1]:
+            errors.append("user_sketch must start at or after the end of loader_partition")
     if "retention" not in layout:
         errors.append("the boot mode retention region is missing")
+    return errors
+
+
+def _board_value(boards: str, board: str, key: str) -> str:
+    prefix = f"{board}.build.image.{key}="
+    for line in boards.splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    return ""
+
+
+def check_boards(layout: Layout, boards: str, board: str) -> List[str]:
+    """Returns the boards.txt image values of a board that disagree with the layout."""
+    errors: List[str] = []
+    parts = layout.get("partitions", {})
+    expected = {
+        "sketch_offset": int(parts.get("user_sketch", {}).get("offset", "-0x1"), 16),
+        "slot_size": int(parts.get("slot0_partition", {}).get("size", "-0x1"), 16),
+        "header_size": int(layout.get("image", {}).get("header_size", "-0x1"), 16),  # type: ignore[union-attr]
+    }
+    for key, want in expected.items():
+        raw = _board_value(boards, board, key)
+        if not raw:
+            errors.append(f"{board}.build.image.{key} is missing from boards.txt")
+            continue
+        if int(raw, 0) != want:
+            errors.append(f"{board}.build.image.{key}={raw} does not match the layout (0x{want:x})")
     return errors
 
 
@@ -69,6 +102,8 @@ def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("layout")
     parser.add_argument("--fresh", help="layout generated from the current build")
+    parser.add_argument("--boards", help="boards.txt whose image values must match the layout")
+    parser.add_argument("--board", action="append", default=[], help="board ID to check in boards.txt")
     args = parser.parse_args(argv)
     with open(args.layout, encoding="utf-8") as handle:
         committed = handle.read()
@@ -77,11 +112,16 @@ def main(argv: List[str]) -> int:
         with open(args.fresh, encoding="utf-8") as handle:
             if not same(committed, handle.read()):
                 errors.append(f"{args.layout} is stale: regenerate it with gen_layout.py")
+    if args.boards:
+        with open(args.boards, encoding="utf-8") as handle:
+            boards = handle.read()
+        for board in args.board:
+            errors.extend(check_boards(json.loads(committed), boards, board))
     for error in errors:
         print(f"FAIL: {error}")
     if errors:
         return 1
-    print("OK: flash layout meets C1")
+    print("OK: flash layout and boards.txt image values agree")
     return 0
 
 

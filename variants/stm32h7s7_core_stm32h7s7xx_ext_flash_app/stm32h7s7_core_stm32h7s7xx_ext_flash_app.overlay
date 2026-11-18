@@ -1,0 +1,7 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Generic STM32H7S7 variant: the shared Arduino mapping only.
+ */
+
+#include "../stm32h7s7_core_common/stm32h7s7_core_variant.dtsi"

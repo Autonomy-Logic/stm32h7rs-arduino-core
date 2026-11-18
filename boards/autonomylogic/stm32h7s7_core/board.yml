@@ -6,3 +6,4 @@ board:
     - name: stm32h7s7xx
       variants:
         - name: ext_flash_app
+        - name: sl_visu_5r

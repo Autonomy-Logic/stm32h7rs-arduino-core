@@ -8,7 +8,7 @@ import re
 import sys
 from typing import Dict, List, Optional
 
-PARTITION_LABELS = ("boot_partition", "slot0_partition", "hmi_store_partition", "user_sketch")
+PARTITION_LABELS = ("boot_partition", "slot0_partition", "hmi_store_partition", "loader_partition", "user_sketch")
 RETENTION_COMPATIBLE = '"zephyr,retention"'
 
 _NODE = re.compile(r"^((?:[A-Za-z_][\w]*:\s*)*)([^\s{]+)\s*\{$")
@@ -118,7 +118,6 @@ def layout_from_dts(text: str) -> Dict[str, Dict[str, Dict[str, str]]]:
             erase = flash.cells("erase-block-size")
             devices[device] = {
                 "start": _hex(flash_start),
-                "size": _hex(flash_reg[1]),
                 "erase_block": _hex(erase[0] if erase else 0),
             }
         compatible = node.props.get("compatible", "")
@@ -149,6 +148,7 @@ def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dts", nargs="+")
     parser.add_argument("--out", required=True)
+    parser.add_argument("--header-size", help="MCUboot image header size (CONFIG_ROM_START_OFFSET of the loader)")
     args = parser.parse_args(argv)
     merged: Dict[str, Dict[str, Dict[str, str]]] = {"partitions": {}, "devices": {}}
     for path in args.dts:
@@ -158,6 +158,8 @@ def main(argv: List[str]) -> int:
         merged["devices"].update(layout["devices"])
         if "retention" in layout:
             merged["retention"] = layout["retention"]
+    if args.header_size:
+        merged["image"] = {"header_size": _hex(int(args.header_size, 0))}  # type: ignore[assignment]
     with open(args.out, "w", encoding="utf-8") as handle:
         handle.write(dumps(merged))
     return 0

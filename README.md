@@ -13,6 +13,23 @@ device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concep
   authenticity, and is for the proof of concept only, never for production (see `bootloader/keys/README.md`).
 - No vendor firmware source code is included; the board files use only published hardware facts.
 
+## Boards
+
+| FQBN | Device | Variant |
+| --- | --- | --- |
+| `AutonomyLogic:zephyr_h7rs:stm32h7s7` | Any STM32H7S7 with octal NOR on XSPI2 (MCU-level features only) | `stm32h7s7_core_stm32h7s7xx_ext_flash_app` |
+| `AutonomyLogic:zephyr_h7rs:sl_visu_5r` | Synergy Logic SL-VISU-5R (adds Ethernet, `Wire` on I2C1, `Serial1` on USART3, PSRAM) | `stm32h7s7_core_stm32h7s7xx_sl_visu_5r` |
+
+- Sketches link statically against a prebuilt loader. The build merges loader and sketch into one image and signs it
+  for MCUboot (`{sketch}.signed.bin`); the loader occupies the first 512 KB of the program slot, the sketch the rest.
+- Arduino pin = port index x 16 + pin (A=0 ... H=7, M=8, N=9, O=10, P=11), e.g. PE1 is pin 65. `Serial` is USB.
+- A 1200 bps open of `Serial` reboots into MCUboot recovery for the next upload.
+- `EthernetServer` serves up to 3 clients at once; a 4th connection is accepted and closed.
+- The Ethernet MAC is derived from the chip's unique ID by Zephyr; `Ethernet.begin(mac, ...)` keeps it.
+- ST's LTDC and DMA2D HAL are built into the loader for device HALs; no display is configured by the core.
+- A new device needs a board variant (`boards/autonomylogic/stm32h7s7_core/<device>.dtsi` and its DTS) for what Zephyr
+  must drive, an Arduino variant under `variants/`, and a `boards.txt` entry; its behaviour lives in its package HAL.
+
 The original upstream README follows.
 
 ---

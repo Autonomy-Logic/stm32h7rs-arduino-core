@@ -1,0 +1,232 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Arduino mapping shared by every STM32H7S7 variant: USB CDC ACM as Serial, the loader and sketch partitions inside
+ * MCUboot slot 0, and every GPIO as an Arduino pin numbered port index x 16 + pin (A=0..H=7, M=8, N=9, O=10, P=11).
+ */
+
+&zephyr_udc0 {
+	board_cdc_acm_uart: board_cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
+		status = "okay";
+	};
+};
+
+&ext_flash {
+	partitions {
+		loader_partition: loader-partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "loader";
+			reg = <0x00000000 0x00080000>;
+		};
+
+		user_sketch: partition@80000 {
+			compatible = "zephyr,mapped-partition";
+			label = "user_sketch";
+			reg = <0x00080000 0x00780000>;
+		};
+	};
+};
+
+/ {
+	chosen {
+		zephyr,code-partition = &loader_partition;
+	};
+
+	zephyr,user {
+		cdc-acm-serial = <&board_cdc_acm_uart>;
+		digital-pin-gpios =
+				<&gpioa 0 0>,	/*   0 PA0 */
+				<&gpioa 1 0>,	/*   1 PA1 */
+				<&gpioa 2 0>,	/*   2 PA2 */
+				<&gpioa 3 0>,	/*   3 PA3 */
+				<&gpioa 4 0>,	/*   4 PA4 */
+				<&gpioa 5 0>,	/*   5 PA5 */
+				<&gpioa 6 0>,	/*   6 PA6 */
+				<&gpioa 7 0>,	/*   7 PA7 */
+				<&gpioa 8 0>,	/*   8 PA8 */
+				<&gpioa 9 0>,	/*   9 PA9 */
+				<&gpioa 10 0>,	/*  10 PA10 */
+				<&gpioa 11 0>,	/*  11 PA11 */
+				<&gpioa 12 0>,	/*  12 PA12 */
+				<&gpioa 13 0>,	/*  13 PA13 */
+				<&gpioa 14 0>,	/*  14 PA14 */
+				<&gpioa 15 0>,	/*  15 PA15 */
+				<&gpiob 0 0>,	/*  16 PB0 */
+				<&gpiob 1 0>,	/*  17 PB1 */
+				<&gpiob 2 0>,	/*  18 PB2 */
+				<&gpiob 3 0>,	/*  19 PB3 */
+				<&gpiob 4 0>,	/*  20 PB4 */
+				<&gpiob 5 0>,	/*  21 PB5 */
+				<&gpiob 6 0>,	/*  22 PB6 */
+				<&gpiob 7 0>,	/*  23 PB7 */
+				<&gpiob 8 0>,	/*  24 PB8 */
+				<&gpiob 9 0>,	/*  25 PB9 */
+				<&gpiob 10 0>,	/*  26 PB10 */
+				<&gpiob 11 0>,	/*  27 PB11 */
+				<&gpiob 12 0>,	/*  28 PB12 */
+				<&gpiob 13 0>,	/*  29 PB13 */
+				<&gpiob 14 0>,	/*  30 PB14 */
+				<&gpiob 15 0>,	/*  31 PB15 */
+				<&gpioc 0 0>,	/*  32 PC0 */
+				<&gpioc 1 0>,	/*  33 PC1 */
+				<&gpioc 2 0>,	/*  34 PC2 */
+				<&gpioc 3 0>,	/*  35 PC3 */
+				<&gpioc 4 0>,	/*  36 PC4 */
+				<&gpioc 5 0>,	/*  37 PC5 */
+				<&gpioc 6 0>,	/*  38 PC6 */
+				<&gpioc 7 0>,	/*  39 PC7 */
+				<&gpioc 8 0>,	/*  40 PC8 */
+				<&gpioc 9 0>,	/*  41 PC9 */
+				<&gpioc 10 0>,	/*  42 PC10 */
+				<&gpioc 11 0>,	/*  43 PC11 */
+				<&gpioc 12 0>,	/*  44 PC12 */
+				<&gpioc 13 0>,	/*  45 PC13 */
+				<&gpioc 14 0>,	/*  46 PC14 */
+				<&gpioc 15 0>,	/*  47 PC15 */
+				<&gpiod 0 0>,	/*  48 PD0 */
+				<&gpiod 1 0>,	/*  49 PD1 */
+				<&gpiod 2 0>,	/*  50 PD2 */
+				<&gpiod 3 0>,	/*  51 PD3 */
+				<&gpiod 4 0>,	/*  52 PD4 */
+				<&gpiod 5 0>,	/*  53 PD5 */
+				<&gpiod 6 0>,	/*  54 PD6 */
+				<&gpiod 7 0>,	/*  55 PD7 */
+				<&gpiod 8 0>,	/*  56 PD8 */
+				<&gpiod 9 0>,	/*  57 PD9 */
+				<&gpiod 10 0>,	/*  58 PD10 */
+				<&gpiod 11 0>,	/*  59 PD11 */
+				<&gpiod 12 0>,	/*  60 PD12 */
+				<&gpiod 13 0>,	/*  61 PD13 */
+				<&gpiod 14 0>,	/*  62 PD14 */
+				<&gpiod 15 0>,	/*  63 PD15 */
+				<&gpioe 0 0>,	/*  64 PE0 */
+				<&gpioe 1 0>,	/*  65 PE1 */
+				<&gpioe 2 0>,	/*  66 PE2 */
+				<&gpioe 3 0>,	/*  67 PE3 */
+				<&gpioe 4 0>,	/*  68 PE4 */
+				<&gpioe 5 0>,	/*  69 PE5 */
+				<&gpioe 6 0>,	/*  70 PE6 */
+				<&gpioe 7 0>,	/*  71 PE7 */
+				<&gpioe 8 0>,	/*  72 PE8 */
+				<&gpioe 9 0>,	/*  73 PE9 */
+				<&gpioe 10 0>,	/*  74 PE10 */
+				<&gpioe 11 0>,	/*  75 PE11 */
+				<&gpioe 12 0>,	/*  76 PE12 */
+				<&gpioe 13 0>,	/*  77 PE13 */
+				<&gpioe 14 0>,	/*  78 PE14 */
+				<&gpioe 15 0>,	/*  79 PE15 */
+				<&gpiof 0 0>,	/*  80 PF0 */
+				<&gpiof 1 0>,	/*  81 PF1 */
+				<&gpiof 2 0>,	/*  82 PF2 */
+				<&gpiof 3 0>,	/*  83 PF3 */
+				<&gpiof 4 0>,	/*  84 PF4 */
+				<&gpiof 5 0>,	/*  85 PF5 */
+				<&gpiof 6 0>,	/*  86 PF6 */
+				<&gpiof 7 0>,	/*  87 PF7 */
+				<&gpiof 8 0>,	/*  88 PF8 */
+				<&gpiof 9 0>,	/*  89 PF9 */
+				<&gpiof 10 0>,	/*  90 PF10 */
+				<&gpiof 11 0>,	/*  91 PF11 */
+				<&gpiof 12 0>,	/*  92 PF12 */
+				<&gpiof 13 0>,	/*  93 PF13 */
+				<&gpiof 14 0>,	/*  94 PF14 */
+				<&gpiof 15 0>,	/*  95 PF15 */
+				<&gpiog 0 0>,	/*  96 PG0 */
+				<&gpiog 1 0>,	/*  97 PG1 */
+				<&gpiog 2 0>,	/*  98 PG2 */
+				<&gpiog 3 0>,	/*  99 PG3 */
+				<&gpiog 4 0>,	/* 100 PG4 */
+				<&gpiog 5 0>,	/* 101 PG5 */
+				<&gpiog 6 0>,	/* 102 PG6 */
+				<&gpiog 7 0>,	/* 103 PG7 */
+				<&gpiog 8 0>,	/* 104 PG8 */
+				<&gpiog 9 0>,	/* 105 PG9 */
+				<&gpiog 10 0>,	/* 106 PG10 */
+				<&gpiog 11 0>,	/* 107 PG11 */
+				<&gpiog 12 0>,	/* 108 PG12 */
+				<&gpiog 13 0>,	/* 109 PG13 */
+				<&gpiog 14 0>,	/* 110 PG14 */
+				<&gpiog 15 0>,	/* 111 PG15 */
+				<&gpioh 0 0>,	/* 112 PH0 */
+				<&gpioh 1 0>,	/* 113 PH1 */
+				<&gpioh 2 0>,	/* 114 PH2 */
+				<&gpioh 3 0>,	/* 115 PH3 */
+				<&gpioh 4 0>,	/* 116 PH4 */
+				<&gpioh 5 0>,	/* 117 PH5 */
+				<&gpioh 6 0>,	/* 118 PH6 */
+				<&gpioh 7 0>,	/* 119 PH7 */
+				<&gpioh 8 0>,	/* 120 PH8 */
+				<&gpioh 9 0>,	/* 121 PH9 */
+				<&gpioh 10 0>,	/* 122 PH10 */
+				<&gpioh 11 0>,	/* 123 PH11 */
+				<&gpioh 12 0>,	/* 124 PH12 */
+				<&gpioh 13 0>,	/* 125 PH13 */
+				<&gpioh 14 0>,	/* 126 PH14 */
+				<&gpioh 15 0>,	/* 127 PH15 */
+				<&gpiom 0 0>,	/* 128 PM0 */
+				<&gpiom 1 0>,	/* 129 PM1 */
+				<&gpiom 2 0>,	/* 130 PM2 */
+				<&gpiom 3 0>,	/* 131 PM3 */
+				<&gpiom 4 0>,	/* 132 PM4 */
+				<&gpiom 5 0>,	/* 133 PM5 */
+				<&gpiom 6 0>,	/* 134 PM6 */
+				<&gpiom 7 0>,	/* 135 PM7 */
+				<&gpiom 8 0>,	/* 136 PM8 */
+				<&gpiom 9 0>,	/* 137 PM9 */
+				<&gpiom 10 0>,	/* 138 PM10 */
+				<&gpiom 11 0>,	/* 139 PM11 */
+				<&gpiom 12 0>,	/* 140 PM12 */
+				<&gpiom 13 0>,	/* 141 PM13 */
+				<&gpiom 14 0>,	/* 142 PM14 */
+				<&gpiom 15 0>,	/* 143 PM15 */
+				<&gpion 0 0>,	/* 144 PN0 */
+				<&gpion 1 0>,	/* 145 PN1 */
+				<&gpion 2 0>,	/* 146 PN2 */
+				<&gpion 3 0>,	/* 147 PN3 */
+				<&gpion 4 0>,	/* 148 PN4 */
+				<&gpion 5 0>,	/* 149 PN5 */
+				<&gpion 6 0>,	/* 150 PN6 */
+				<&gpion 7 0>,	/* 151 PN7 */
+				<&gpion 8 0>,	/* 152 PN8 */
+				<&gpion 9 0>,	/* 153 PN9 */
+				<&gpion 10 0>,	/* 154 PN10 */
+				<&gpion 11 0>,	/* 155 PN11 */
+				<&gpion 12 0>,	/* 156 PN12 */
+				<&gpion 13 0>,	/* 157 PN13 */
+				<&gpion 14 0>,	/* 158 PN14 */
+				<&gpion 15 0>,	/* 159 PN15 */
+				<&gpioo 0 0>,	/* 160 PO0 */
+				<&gpioo 1 0>,	/* 161 PO1 */
+				<&gpioo 2 0>,	/* 162 PO2 */
+				<&gpioo 3 0>,	/* 163 PO3 */
+				<&gpioo 4 0>,	/* 164 PO4 */
+				<&gpioo 5 0>,	/* 165 PO5 */
+				<&gpioo 6 0>,	/* 166 PO6 */
+				<&gpioo 7 0>,	/* 167 PO7 */
+				<&gpioo 8 0>,	/* 168 PO8 */
+				<&gpioo 9 0>,	/* 169 PO9 */
+				<&gpioo 10 0>,	/* 170 PO10 */
+				<&gpioo 11 0>,	/* 171 PO11 */
+				<&gpioo 12 0>,	/* 172 PO12 */
+				<&gpioo 13 0>,	/* 173 PO13 */
+				<&gpioo 14 0>,	/* 174 PO14 */
+				<&gpioo 15 0>,	/* 175 PO15 */
+				<&gpiop 0 0>,	/* 176 PP0 */
+				<&gpiop 1 0>,	/* 177 PP1 */
+				<&gpiop 2 0>,	/* 178 PP2 */
+				<&gpiop 3 0>,	/* 179 PP3 */
+				<&gpiop 4 0>,	/* 180 PP4 */
+				<&gpiop 5 0>,	/* 181 PP5 */
+				<&gpiop 6 0>,	/* 182 PP6 */
+				<&gpiop 7 0>,	/* 183 PP7 */
+				<&gpiop 8 0>,	/* 184 PP8 */
+				<&gpiop 9 0>,	/* 185 PP9 */
+				<&gpiop 10 0>,	/* 186 PP10 */
+				<&gpiop 11 0>,	/* 187 PP11 */
+				<&gpiop 12 0>,	/* 188 PP12 */
+				<&gpiop 13 0>,	/* 189 PP13 */
+				<&gpiop 14 0>,	/* 190 PP14 */
+				<&gpiop 15 0>;	/* 191 PP15 */
+	};
+};
