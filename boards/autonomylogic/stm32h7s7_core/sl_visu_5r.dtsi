@@ -1,0 +1,136 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * SL-VISU-5R device data: 25 MHz HSE clock tree, 32 MB external flash, APS6408L x8 PSRAM, Ethernet RMII with a
+ * KSZ8081 PHY clocked by the MCU (PLL3 S on PD6), I2C1 and USART3. The display, touch and backlight are driven by
+ * the device's OpenPLC package HAL, not here.
+ */
+
+#include <zephyr/dt-bindings/memory-attr/memory-attr.h>
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+/ {
+	psram: memory@90000000 {
+		compatible = "zephyr,memory-region";
+		reg = <0x90000000 DT_SIZE_M(8)>;
+		zephyr,memory-region = "PSRAM";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM_NOCACHE)>;
+	};
+
+	eth_phy_clk_mux: eth-phy-clk-mux {
+		#clock-cells = <0>;
+		compatible = "st,stm32-clock-mux";
+		clocks = <&rcc STM32_SRC_PLL3_S STM32_DT_CLOCK_SELECT(1, 18, 18, D1CCIPR_REG)>;
+		status = "okay";
+	};
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(25)>;
+	status = "okay";
+};
+
+&pll {
+	div-m = <2>;
+	mul-n = <48>;
+	div-p = <1>;
+	div-q = <2>;
+	div-r = <2>;
+	div-s = <2>;
+	div-t = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pll3 {
+	div-m = <2>;
+	mul-n = <32>;
+	div-q = <20>;
+	div-r = <16>;
+	div-s = <8>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&pinctrl {
+	eth_clk_pd6: eth_clk_pd6 {
+		pinmux = <STM32_PINMUX('D', 6, AF4)>;
+		slew-rate = "very-high-speed";
+	};
+};
+
+ext_flash_mem: &ext_flash_mem {
+	reg = <0x70000000 DT_SIZE_M(32)>;
+};
+
+&ext_flash_ctrl {
+	size = <DT_SIZE_M(256)>; /* 256 Mbits */
+	ranges = <0x0 0x70000000 DT_SIZE_M(32)>;
+};
+
+&ext_flash {
+	reg = <0x0 DT_SIZE_M(32)>;
+};
+
+&xspi1 {
+	pinctrl-0 = <&xspim_p1_ncs1_po0 &xspim_p1_dqs0_po2 &xspim_p1_clk_po4
+		     &xspim_p1_io0_pp0 &xspim_p1_io1_pp1 &xspim_p1_io2_pp2 &xspim_p1_io3_pp3
+		     &xspim_p1_io4_pp4 &xspim_p1_io5_pp5 &xspim_p1_io6_pp6 &xspim_p1_io7_pp7>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	memc: aps6408l@0 {
+		compatible = "st,stm32-xspi-psram";
+		reg = <0>;
+		size = <DT_SIZE_M(64)>; /* 64 Mbits */
+		max-frequency = <DT_FREQ_M(100)>;
+		read-latency = <1>;
+		write-latency = <4>;
+		burst-length = <1>;
+		st,csbound = <10>;
+		st,refresh = <400>;
+		status = "okay";
+	};
+};
+
+&mac {
+	pinctrl-0 = <&eth_rmii_ref_clk_pd7
+		     &eth_rmii_crs_dv_pa7
+		     &eth_rmii_rxd0_pc4
+		     &eth_rmii_rxd1_pc5
+		     &eth_rmii_tx_en_pd8
+		     &eth_rmii_txd0_pb0
+		     &eth_rmii_txd1_pb7
+		     &eth_clk_pd6>;
+	pinctrl-names = "default";
+	phy-connection-type = "rmii";
+	phy-handle = <&eth_phy>;
+	status = "okay";
+};
+
+&mdio {
+	pinctrl-0 = <&eth_mdio_pa4 &eth_mdc_pc1>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	eth_phy: ethernet-phy@0 {
+		compatible = "microchip,ksz8081";
+		reg = <0x00>;
+		microchip,interface-type = "rmii";
+		status = "okay";
+	};
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb8 &i2c1_sda_pb9>;
+	pinctrl-names = "default";
+	clock-frequency = <I2C_BITRATE_FAST>;
+	status = "okay";
+};
+
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pc10 &usart3_rx_pc11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};

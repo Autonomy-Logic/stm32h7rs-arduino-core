@@ -1,0 +1,19 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Synergy Logic SL-VISU-5R: the program image (XIP from slot 0) with the device's own peripherals.
+ */
+
+#include "stm32h7s7_core_common.dtsi"
+#include "sl_visu_5r.dtsi"
+
+/ {
+	model = "Synergy Logic SL-VISU-5R";
+	compatible = "synergylogic,sl-visu-5r", "autonomylogic,stm32h7s7-core";
+
+	chosen {
+		zephyr,flash = &ext_flash;
+		zephyr,flash-controller = &ext_flash_ctrl;
+		zephyr,code-partition = &slot0_partition;
+	};
+};

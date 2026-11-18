@@ -1,0 +1,18 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Internal-flash target: the MCUboot build, the same for every device of this core.
+ */
+
+#include "stm32h7s7_core_common.dtsi"
+
+/ {
+	model = "STM32H7S7 core";
+	compatible = "autonomylogic,stm32h7s7-core";
+
+	chosen {
+		zephyr,flash = &flash0;
+		zephyr,flash-controller = &flash;
+		zephyr,code-partition = &boot_partition;
+	};
+};

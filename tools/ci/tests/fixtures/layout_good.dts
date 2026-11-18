@@ -1,0 +1,94 @@
+/dts-v1/;
+
+/ {
+	#address-cells = < 0x1 >;
+	#size-cells = < 0x1 >;
+	model = "STM32H7S7 core";
+	chosen {
+		zephyr,boot-mode = &boot_mode0;
+	};
+	soc {
+		#address-cells = < 0x1 >;
+		#size-cells = < 0x1 >;
+		ranges;
+		flash: flash-controller@52002000 {
+			compatible = "st,stm32-flash-controller", "st,stm32h7rs-flash-controller";
+			reg = < 0x52002000 0x400 >;
+			#address-cells = < 0x1 >;
+			#size-cells = < 0x1 >;
+			flash0: flash@8000000 {
+				compatible = "st,stm32-nv-flash", "soc-nv-flash";
+				reg = < 0x8000000 0x10000 >;
+				write-block-size = < 0x10 >;
+				erase-block-size = < 0x2000 >;
+				partitions {
+					#address-cells = < 0x1 >;
+					#size-cells = < 0x1 >;
+					ranges;
+					boot_partition: partition@0 {
+						compatible = "zephyr,mapped-partition";
+						label = "mcuboot";
+						reg = < 0x0 0x10000 >;
+					};
+				};
+			};
+		};
+		xspi2: xspi@5200a000 {
+			compatible = "st,stm32-xspi";
+			reg = < 0x5200a000 0x1000 >, < 0x70000000 0x2000000 >;
+			#address-cells = < 0x1 >;
+			#size-cells = < 0x0 >;
+			ext_flash_ctrl: xspi-nor-flash@0 {
+				compatible = "st,stm32-xspi-nor";
+				reg = < 0x0 >;
+				#address-cells = < 0x1 >;
+				#size-cells = < 0x1 >;
+				ranges = < 0x0 0x70000000 0x2000000 >;
+				ext_flash: ext-flash@0 {
+					compatible = "soc-nv-flash";
+					reg = < 0x0 0x2000000 >;
+					write-block-size = < 0x1 >;
+					erase-block-size = < 0x1000 >;
+					#address-cells = < 0x1 >;
+					#size-cells = < 0x1 >;
+					ranges;
+					partitions {
+						#address-cells = < 0x1 >;
+						#size-cells = < 0x1 >;
+						ranges;
+						slot0_partition: partition@0 {
+							compatible = "zephyr,mapped-partition";
+							label = "image-0";
+							reg = < 0x0 0x800000 >;
+						};
+						hmi_store_partition: partition@800000 {
+							compatible = "zephyr,mapped-partition";
+							label = "hmi-store";
+							reg = < 0x800000 0x10000 >;
+						};
+					};
+				};
+			};
+		};
+	};
+	sram_retained: memory@24071f00 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = < 0x24071f00 0x100 >;
+		zephyr,memory-region = "RetainedMem";
+		retainedmem0: retainedmem {
+			compatible = "zephyr,retained-ram";
+			#address-cells = < 0x1 >;
+			#size-cells = < 0x1 >;
+			retention0: retention@0 {
+				compatible = "zephyr,retention";
+				reg = < 0x0 0x100 >;
+				#address-cells = < 0x1 >;
+				#size-cells = < 0x1 >;
+				boot_mode0: boot_mode@0 {
+					compatible = "zephyr,retention";
+					reg = < 0x0 0x1 >;
+				};
+			};
+		};
+	};
+};

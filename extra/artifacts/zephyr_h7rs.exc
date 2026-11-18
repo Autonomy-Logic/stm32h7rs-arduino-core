@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Libraries the STM32H7S7 core does not support.
+
+libraries/Arduino_LED_Matrix/
+libraries/Camera/
+libraries/CAN/
+libraries/OTA/
+libraries/PDM/
+libraries/RTC/
+libraries/WiFi/
+libraries/Zephyr_SDRAM/

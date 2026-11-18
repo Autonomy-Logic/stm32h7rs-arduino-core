@@ -1,5 +1,4 @@
 /build/
-/distrib/
 /firmwares/*
 /venv/
 /boards.local.txt
@@ -18,3 +17,8 @@ includes.txt
 syms-dynamic.ld
 syms-static.ld
 tls-syms.S
+
+# Host test binaries
+/tools/ci/host-tests/test_client_table
+
+/distrib/
