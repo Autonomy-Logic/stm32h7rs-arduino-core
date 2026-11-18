@@ -88,6 +88,16 @@ def absolute(node: Node, address: int) -> int:
     return address
 
 
+def _boot_mode_node(root: Node, nodes: List[Node]) -> Optional[Node]:
+    """Returns the node chosen as zephyr,boot-mode, else the first zephyr,retention node."""
+    chosen = next((n for n in root.children if n.name == "chosen"), None)
+    label = chosen.props.get("zephyr,boot-mode", "").lstrip("&") if chosen else ""
+    for node in nodes:
+        if label and label in node.labels:
+            return node
+    return next((n for n in nodes if n.props.get("compatible", "") == RETENTION_COMPATIBLE), None)
+
+
 def _hex(value: int) -> str:
     return f"0x{value:08x}"
 
@@ -120,18 +130,21 @@ def layout_from_dts(text: str) -> Dict[str, Dict[str, Dict[str, str]]]:
                 "start": _hex(flash_start),
                 "erase_block": _hex(erase[0] if erase else 0),
             }
-        compatible = node.props.get("compatible", "")
-        if retention is None and compatible == RETENTION_COMPATIBLE and node.parent is not None:
-            region = node.parent
-            while region.parent is not None and not region.cells("reg"):
-                region = region.parent
-            region_reg = region.cells("reg")
-            reg = node.cells("reg")
-            if region_reg and reg:
-                retention = {
-                    "start": _hex(absolute(region, region_reg[0]) + reg[0]),
-                    "size": _hex(reg[1]),
-                }
+    boot_mode = _boot_mode_node(root, nodes)
+    if boot_mode is not None and boot_mode.parent is not None:
+        region = boot_mode.parent
+        while region.parent is not None and not region.cells("reg"):
+            region = region.parent
+        region_reg = region.cells("reg")
+        reg = boot_mode.cells("reg")
+        if region_reg and reg:
+            retention = {
+                "start": _hex(absolute(region, region_reg[0]) + reg[0]),
+                "size": _hex(reg[1]),
+                "parent": boot_mode.parent.props.get("compatible", "").strip('"'),
+                "prefix": "yes" if "prefix" in boot_mode.props else "no",
+                "checksum": "yes" if "checksum" in boot_mode.props else "no",
+            }
     layout: Dict[str, Dict[str, Dict[str, str]]] = {"partitions": partitions, "devices": devices}
     if retention is not None:
         layout["retention"] = retention  # type: ignore[assignment]

@@ -60,8 +60,31 @@ def check(layout: Layout) -> List[str]:
             errors.append("loader_partition must start at the start of slot0_partition")
         if "user_sketch" in parts and _span(parts["user_sketch"])[0] < loader[1]:
             errors.append("user_sketch must start at or after the end of loader_partition")
-    if "retention" not in layout:
+    retention = layout.get("retention")
+    if retention is None:
         errors.append("the boot mode retention region is missing")
+    else:
+        if retention.get("parent") != "zephyr,retained-ram":  # type: ignore[union-attr]
+            errors.append("the boot mode retention node must sit directly under a zephyr,retained-ram node")
+        for key in ("prefix", "checksum"):
+            if retention.get(key) != "yes":  # type: ignore[union-attr]
+                errors.append(f"the boot mode retention node must set a {key}")
+    return errors
+
+
+def compare(layouts: Dict[str, Layout]) -> List[str]:
+    """Returns every partition or retention value that differs between builds sharing the layout."""
+    errors: List[str] = []
+    names = sorted(layouts)
+    for i, first in enumerate(names):
+        for second in names[i + 1:]:
+            a, b = layouts[first], layouts[second]
+            shared = set(a.get("partitions", {})) & set(b.get("partitions", {}))
+            for part in sorted(shared):
+                if a["partitions"][part] != b["partitions"][part]:
+                    errors.append(f"{part} differs between {first} and {second}")
+            if a.get("retention") != b.get("retention"):
+                errors.append(f"the retention region differs between {first} and {second}")
     return errors
 
 
@@ -104,6 +127,7 @@ def main(argv: List[str]) -> int:
     parser.add_argument("--fresh", help="layout generated from the current build")
     parser.add_argument("--boards", help="boards.txt whose image values must match the layout")
     parser.add_argument("--board", action="append", default=[], help="board ID to check in boards.txt")
+    parser.add_argument("--compare", action="append", default=[], help="layout of another build that must agree")
     args = parser.parse_args(argv)
     with open(args.layout, encoding="utf-8") as handle:
         committed = handle.read()
@@ -112,6 +136,12 @@ def main(argv: List[str]) -> int:
         with open(args.fresh, encoding="utf-8") as handle:
             if not same(committed, handle.read()):
                 errors.append(f"{args.layout} is stale: regenerate it with gen_layout.py")
+    if args.compare:
+        layouts = {args.layout: json.loads(committed)}
+        for path in args.compare:
+            with open(path, encoding="utf-8") as handle:
+                layouts[path] = json.loads(handle.read())
+        errors.extend(compare(layouts))
     if args.boards:
         with open(args.boards, encoding="utf-8") as handle:
             boards = handle.read()

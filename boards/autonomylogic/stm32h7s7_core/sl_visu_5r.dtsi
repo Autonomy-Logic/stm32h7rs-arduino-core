@@ -17,10 +17,19 @@
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM_NOCACHE)>;
 	};
 
+	/* ETH_CLK (PD6) output to the PHY: PLL3 S. */
 	eth_phy_clk_mux: eth-phy-clk-mux {
 		#clock-cells = <0>;
 		compatible = "st,stm32-clock-mux";
 		clocks = <&rcc STM32_SRC_PLL3_S STM32_DT_CLOCK_SELECT(1, 18, 18, D1CCIPR_REG)>;
+		status = "okay";
+	};
+
+	/* MAC RMII reference clock: internal feedback of ETH_CLK, not the PD7 pad. */
+	eth_ref_clk_mux: eth-ref-clk-mux {
+		#clock-cells = <0>;
+		compatible = "st,stm32-clock-mux";
+		clocks = <&rcc STM32_SRC_PLL3_S STM32_DT_CLOCK_SELECT(2, 17, 16, D1CCIPR_REG)>;
 		status = "okay";
 	};
 };
@@ -84,8 +93,9 @@ ext_flash_mem: &ext_flash_mem {
 		reg = <0>;
 		size = <DT_SIZE_M(64)>; /* 64 Mbits */
 		max-frequency = <DT_FREQ_M(100)>;
-		read-latency = <1>;
-		write-latency = <4>;
+		fixed-latency;
+		read-latency = <4>;
+		write-latency = <1>;
 		burst-length = <1>;
 		st,csbound = <10>;
 		st,refresh = <400>;
