@@ -109,14 +109,9 @@ jobs:
           for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
             python3 tools/ci/check_loader_config.py firmwares/zephyr-$v.config
           done
-      - name: Flash layout, freshness and boards.txt values
+      - name: Flash layout agrees between MCUboot, loaders and boards.txt
         working-directory: stm32h7rs-arduino-core
-        run: |
-          hs=$(grep '^CONFIG_ROM_START_OFFSET=' firmwares/zephyr-stm32h7s7_core_stm32h7s7xx_sl_visu_5r.config | cut -d= -f2)
-          for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
-            python3 tools/ci/gen_layout.py build/mcuboot/zephyr/zephyr.dts firmwares/zephyr-$v.dts --header-size $hs --out /tmp/layout-$v.json
-            python3 tools/ci/check_layout.py tools/ci/layout.json --fresh /tmp/layout-$v.json --boards boards.txt --board stm32h7s7 --board sl_visu_5r
-          done
+        run: tools/ci/check_all_layouts.sh
       - name: arduino-cli with the working-tree core
         run: |
           mkdir -p arduino/bin arduino/sketchbook/hardware/AutonomyLogic

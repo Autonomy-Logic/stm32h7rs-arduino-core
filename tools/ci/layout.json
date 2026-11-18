@@ -45,6 +45,9 @@
     }
   },
   "retention": {
+    "checksum": "yes",
+    "parent": "zephyr,retained-ram",
+    "prefix": "yes",
     "size": "0x00000100",
     "start": "0x24071f00"
   }

@@ -57,6 +57,7 @@ jobs:
           make -C tools/ci/host-tests check
           (cd tools/stm32h7rs-tool && go vet ./... && go test ./...)
           go install golang.org/x/vuln/cmd/govulncheck@latest
+          set -o pipefail
           (cd tools/stm32h7rs-tool && $(go env GOPATH)/bin/govulncheck ./...) | tee ../govulncheck.txt
       - name: Build MCUboot and loaders
         working-directory: stm32h7rs-arduino-core
@@ -74,6 +75,9 @@ jobs:
           for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
             python3 tools/ci/check_loader_config.py firmwares/zephyr-$v.config
           done
+      - name: Flash layout agrees between MCUboot, loaders and boards.txt
+        working-directory: stm32h7rs-arduino-core
+        run: tools/ci/check_all_layouts.sh
       - name: Assemble the release directory
         working-directory: stm32h7rs-arduino-core
         env:

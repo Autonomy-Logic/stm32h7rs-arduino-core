@@ -39,6 +39,20 @@ class GenLayoutTest(unittest.TestCase):
         layout = good_layout()
         self.assertEqual(layout["retention"]["start"], "0x24071f00")
         self.assertEqual(layout["retention"]["size"], "0x00000100")
+        self.assertEqual(layout["retention"]["parent"], "zephyr,retained-ram")
+        self.assertEqual(layout["retention"]["prefix"], "yes")
+        self.assertEqual(layout["retention"]["checksum"], "yes")
+
+    def test_nested_retention_is_recorded(self):
+        with open(os.path.join(FIXTURES, "layout_good.dts"), encoding="utf-8") as handle:
+            text = handle.read()
+        nested = text.replace(
+            "\t\t\tboot_mode0: boot_mode@0 {",
+            "\t\t\tretention0: retention@0 {\n\t\t\t\tcompatible = \"zephyr,retention\";\n"
+            "\t\t\t\treg = < 0x0 0x100 >;\n\t\t\tboot_mode0: boot_mode@0 {",
+        ).replace("\t\t\t};\n\t\t};\n\t};\n};", "\t\t\t};\n\t\t\t};\n\t\t};\n\t};\n};")
+        layout = gl.layout_from_dts(nested)
+        self.assertEqual(layout["retention"]["parent"], "zephyr,retention")
 
     def test_trailing_source_comments_are_ignored(self):
         text = (
@@ -157,6 +171,34 @@ class CheckLayoutTest(unittest.TestCase):
         layout["partitions"]["slot0_partition"]["start"] = "0x70010000"
         errors = cl.check(layout)
         self.assertTrue(any("slot0_partition" in e for e in errors), errors)
+
+    def test_retention_under_another_retention_node_fails(self):
+        layout = copy.deepcopy(good_layout())
+        layout["retention"]["parent"] = "zephyr,retention"
+        self.assertTrue(any("retained-ram" in e for e in cl.check(layout)))
+
+    def test_retention_without_checksum_fails(self):
+        layout = copy.deepcopy(good_layout())
+        layout["retention"]["checksum"] = "no"
+        self.assertTrue(any("checksum" in e for e in cl.check(layout)))
+
+    def test_compare_finds_slot_difference(self):
+        a = good_layout()
+        b = copy.deepcopy(a)
+        b["partitions"]["slot0_partition"]["size"] = "0x00080000"
+        errors = cl.compare({"mcuboot": a, "loader": b})
+        self.assertTrue(any("slot0_partition" in e for e in errors), errors)
+
+    def test_compare_ignores_loader_only_partitions(self):
+        a = good_layout()
+        b = with_loader(a)
+        self.assertEqual(cl.compare({"mcuboot": a, "loader": b}), [])
+
+    def test_compare_finds_retention_difference(self):
+        a = good_layout()
+        b = copy.deepcopy(a)
+        b["retention"]["start"] = "0x24071e00"
+        self.assertTrue(cl.compare({"mcuboot": a, "loader": b}))
 
     def test_missing_retention_fails(self):
         layout = copy.deepcopy(good_layout())

@@ -20,7 +20,7 @@
 
 	ext_flash_mem: memory@70000000 {
 		compatible = "zephyr,memory-region";
-		reg = <0x70000000 DT_SIZE_M(16)>;
+		reg = <0x70000000 DT_SIZE_M(128)>;
 		zephyr,memory-region = "EXTMEM";
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_FLASH)>;
 	};
@@ -87,7 +87,7 @@
 	ext_flash_ctrl: xspi-nor-flash@0 {
 		compatible = "st,stm32-xspi-nor";
 		reg = <0>;
-		size = <DT_SIZE_M(128)>; /* 128 Mbits, the minimum this core supports */
+		size = <DT_SIZE_M(1024)>; /* 1 Gbit window: MCUboot maps it once for every device; variants set the real size */
 		ospi-max-frequency = <DT_FREQ_M(50)>;
 		spi-bus-width = <XSPI_OCTO_MODE>;
 		data-rate = <XSPI_DTR_TRANSFER>;
@@ -96,11 +96,11 @@
 
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges = <0x0 0x70000000 DT_SIZE_M(16)>;
+		ranges = <0x0 0x70000000 DT_SIZE_M(128)>;
 
 		ext_flash: ext-flash@0 {
 			compatible = "soc-nv-flash";
-			reg = <0x0 DT_SIZE_M(16)>;
+			reg = <0x0 DT_SIZE_M(128)>;
 			write-block-size = <1>;
 			erase-block-size = <DT_SIZE_K(4)>;
 			#address-cells = <1>;
