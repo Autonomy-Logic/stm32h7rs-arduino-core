@@ -3,6 +3,8 @@ name: arduino-api
 build:
   cmake: .
   kconfig: Kconfig
+  settings:
+    board_root: .
 samples:
   - samples
 blobs:

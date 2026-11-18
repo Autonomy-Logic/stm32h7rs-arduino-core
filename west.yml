@@ -21,7 +21,8 @@ manifest:
   projects:
     - name: zephyr
       remote: arduino
-      revision: zephyr-arduino-v4.5.0
+      # zephyr-arduino-v4.5.0, pinned by commit
+      revision: 2dcb501fadd1ac665d2a613d7b158535a76fe4ae
       import:
         name-allowlist:
           - cmsis
@@ -33,6 +34,7 @@ manifest:
           - segger
           - thrift
           - mcuboot
+          - zcbor
           - nanopb
           - lvgl
           - fatfs
@@ -47,4 +49,4 @@ manifest:
     - name: cannectivity
       path: modules/lib/cannectivity
       url: https://github.com/CANnectivity/cannectivity.git
-      revision: main
+      revision: 7f68010d1f090a2eba51f2cc544a9afd8b8e3a15

@@ -1,0 +1,8 @@
+board:
+  name: stm32h7s7_core
+  full_name: STM32H7S7 core (external flash XIP)
+  vendor: autonomylogic
+  socs:
+    - name: stm32h7s7xx
+      variants:
+        - name: ext_flash_app

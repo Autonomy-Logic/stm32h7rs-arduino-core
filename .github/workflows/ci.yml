@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+name: STM32H7S7 core checks
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-scripts:
+    name: CI check script tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests of tools/ci
+        run: python3 -m unittest discover -s tools/ci/tests -v
+
+  mcuboot:
+    name: MCUboot build and checks
+    runs-on: ubuntu-24.04
+    needs: check-scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: stm32h7rs-arduino-core
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install host tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler
+      - name: Cache west modules and Zephyr SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            zephyr
+            bootloader
+            modules
+            zephyr-sdk
+          key: west-${{ hashFiles('stm32h7rs-arduino-core/west.yml') }}-sdk-1.0.1
+      - name: West workspace
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install west imgtool
+          [ -d ../.west ] || west init -l .
+          west config manifest.project-filter -- "-hal_.*,+hal_stm32"
+          west update --narrow -o=--depth=1
+          pip install -r ../zephyr/scripts/requirements-base.txt
+          [ -d ../zephyr-sdk ] || west sdk install --version 1.0.1 -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+      - name: Dependencies pinned by commit
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          source venv/bin/activate
+          west manifest --resolve --active-only > /tmp/resolved.yml
+          python3 tools/ci/check_west_pins.py /tmp/resolved.yml
+      - name: Build MCUboot
+        working-directory: stm32h7rs-arduino-core
+        env:
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
+        run: |
+          source venv/bin/activate
+          ./bootloader/build.sh
+      - name: MCUboot configuration (single slot, recovery entries, signature)
+        working-directory: stm32h7rs-arduino-core
+        run: python3 tools/ci/check_mcuboot_config.py build/mcuboot/zephyr/.config
+      - name: MCUboot size
+        working-directory: stm32h7rs-arduino-core
+        run: python3 tools/ci/check_mcuboot_size.py --bin build/mcuboot/zephyr/zephyr.bin --map build/mcuboot/zephyr/zephyr.map
+      - name: Flash layout rules and freshness
+        working-directory: stm32h7rs-arduino-core
+        run: |
+          python3 tools/ci/gen_layout.py build/mcuboot/zephyr/zephyr.dts --out /tmp/layout.json
+          python3 tools/ci/check_layout.py tools/ci/layout.json --fresh /tmp/layout.json
+      - name: MCUboot artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcuboot-stm32h7s7-core
+          path: |
+            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.bin
+            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.hex
+            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.map
+            stm32h7rs-arduino-core/build/mcuboot/zephyr/.config

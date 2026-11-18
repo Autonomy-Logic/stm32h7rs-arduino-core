@@ -1,0 +1,16 @@
+Memory Configuration
+
+Name             Origin             Length             Attributes
+FLASH            0x0000000008000000 0x0000000000020000 xr
+RAM              0x0000000024000000 0x0000000000072000 xw
+
+Linker script and memory map
+
+rom_start       0x0000000008000000      0x2d8
+
+text            0x00000000080002d8     0xd000
+
+.data
+                0x0000000024000000      0x400 load address 0x000000000800fd00
+
+bss             0x0000000024000400     0x2f40

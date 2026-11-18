@@ -1,0 +1,80 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Flash layout shared by MCUboot and every loader of this core: MCUboot owns the 64 KB internal flash, the program
+ * slot and the HMI store live in external flash; the store follows the slot so no flash size is assumed.
+ */
+
+/ {
+	chosen {
+		zephyr,boot-mode = &boot_mode0;
+	};
+
+	sram_retained: memory@24071f00 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x24071f00 0x100>;
+		zephyr,memory-region = "RetainedMem";
+		status = "okay";
+
+		retainedmem0: retainedmem {
+			compatible = "zephyr,retained-ram";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "okay";
+
+			retention0: retention@0 {
+				compatible = "zephyr,retention";
+				reg = <0x0 0x100>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				status = "okay";
+
+				boot_mode0: boot_mode@0 {
+					compatible = "zephyr,retention";
+					reg = <0x0 0x1>;
+					status = "okay";
+				};
+			};
+		};
+	};
+};
+
+&sram0 {
+	reg = <0x24000000 0x71f00>;
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x00000000 0x00010000>;
+		};
+	};
+};
+
+&ext_flash {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		slot0_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x00000000 0x00800000>;
+		};
+
+		hmi_store_partition: partition@800000 {
+			compatible = "zephyr,mapped-partition";
+			label = "hmi-store";
+			reg = <0x00800000 0x00010000>;
+		};
+	};
+};

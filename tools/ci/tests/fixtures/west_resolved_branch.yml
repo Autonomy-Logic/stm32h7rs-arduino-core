@@ -1,0 +1,12 @@
+manifest:
+  projects:
+  - name: zephyr
+    url: https://github.com/arduino/zephyr
+    revision: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c
+    path: zephyr
+  - name: cannectivity
+    url: https://github.com/CANnectivity/cannectivity.git
+    revision: main
+    path: modules/lib/cannectivity
+  self:
+    path: stm32h7rs-arduino-core

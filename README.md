@@ -1,3 +1,22 @@
+# STM32H7S7 Arduino core (proof of concept)
+
+This repository is a copy of the Arduino Core for Zephyr with one added MCU target: the STM32H7S7, booting from
+external octal NOR flash. It is MCU-level: device-specific behaviour lives in each device's OpenPLC package (VPP) HAL,
+and only what Zephyr itself must drive (Ethernet, bus pins, PSRAM mode) goes in a small per-device variant. Its first
+device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concept and may be removed when it ends.
+
+- Board: `boards/autonomylogic/stm32h7s7_core/`. Flash layout: `stm32h7s7_core_flash_layout.dtsi` (MCUboot in the
+  64 KB internal flash; program slot and HMI store in external flash).
+- Bootloader: standard MCUboot, configured in `bootloader/` and built with `bootloader/build.sh`; recovery is entered
+  by the 1200 bps request or when no valid program exists.
+- Signing key: `bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem` is a **development key**: it proves integrity, not
+  authenticity, and is for the proof of concept only, never for production (see `bootloader/keys/README.md`).
+- No vendor firmware source code is included; the board files use only published hardware facts.
+
+The original upstream README follows.
+
+---
+
 [![Default branch status](https://github.com/arduino/ArduinoCore-zephyr/actions/workflows/package_core.yml/badge.svg?branch=main&event=push)](https://github.com/arduino/ArduinoCore-zephyr/actions/workflows/package_core.yml)
 
 # 🪁 Arduino Core for Zephyr

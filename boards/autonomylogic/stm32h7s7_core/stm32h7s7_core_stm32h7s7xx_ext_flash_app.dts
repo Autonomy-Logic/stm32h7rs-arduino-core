@@ -1,0 +1,18 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * External-flash target: the generic program image MCUboot starts from slot 0 (XIP at 0x70000000).
+ */
+
+#include "stm32h7s7_core_common.dtsi"
+
+/ {
+	model = "STM32H7S7 core";
+	compatible = "autonomylogic,stm32h7s7-core";
+
+	chosen {
+		zephyr,flash = &ext_flash;
+		zephyr,flash-controller = &ext_flash_ctrl;
+		zephyr,code-partition = &slot0_partition;
+	};
+};
