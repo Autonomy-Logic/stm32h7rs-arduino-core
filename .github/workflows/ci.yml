@@ -67,6 +67,8 @@ jobs:
           key: west-${{ hashFiles('stm32h7rs-arduino-core/west.yml') }}-sdk-${{ env.ZEPHYR_SDK_VERSION }}
       - name: West workspace
         working-directory: stm32h7rs-arduino-core
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m venv venv
           source venv/bin/activate
@@ -75,7 +77,7 @@ jobs:
           west config manifest.project-filter -- "-hal_.*,+hal_stm32"
           west update --narrow -o=--depth=1
           pip install -r ../zephyr/scripts/requirements-base.txt
-          [ -d ../zephyr-sdk ] || west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+          [ -d ../zephyr-sdk ] || west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk --personal-access-token "$GH_TOKEN"
           west blobs fetch arduino-api --auto-accept
       - name: Dependencies pinned by commit
         working-directory: stm32h7rs-arduino-core
