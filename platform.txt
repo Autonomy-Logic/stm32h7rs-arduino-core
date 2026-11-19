@@ -401,10 +401,11 @@ debug.server.openocd.path={runtime.tools.openocd-0.12.0-arduino1-static.path}/bi
 debug.server.openocd.scripts_dir={runtime.tools.openocd-0.12.0-arduino1-static.path}/share/openocd/scripts/
 build.stm32h7rs_tool={runtime.tools.stm32h7rs-tool.path}/stm32h7rs-tool
 
-# Upload over USB to MCUboot serial recovery (STM32H7S7 core)
+# Upload over Ethernet to the network bootloader (STM32H7S7 core): "arduino-cli upload --port <device IP>". The
+# tool asks the running program to restart into the bootloader, sends the image over TFTP and checks it runs.
 tools.stm32h7rs.path={runtime.tools.stm32h7rs-tool.path}
 tools.stm32h7rs.cmd=stm32h7rs-tool
-tools.stm32h7rs.upload.params.verbose=
+tools.stm32h7rs.upload.params.verbose=-v
 tools.stm32h7rs.upload.params.quiet=
-tools.stm32h7rs.upload.pattern="{path}/{cmd}" upload --port "{serial.port}" "{build.path}/{build.project_name}.signed.bin"
-tools.stm32h7rs.upload.pattern.windows="{path}/{cmd}.exe" upload --port "{serial.port}" "{build.path}/{build.project_name}.signed.bin"
+tools.stm32h7rs.upload.pattern="{path}/{cmd}" upload {upload.verbose} --verify --ip "{upload.port.address}" "{build.path}/{build.project_name}.image.bin"
+tools.stm32h7rs.upload.pattern.windows="{path}/{cmd}.exe" upload {upload.verbose} --verify --ip "{upload.port.address}" "{build.path}/{build.project_name}.image.bin"

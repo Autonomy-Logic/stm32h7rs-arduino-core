@@ -1,35 +1,18 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Flash layout shared by MCUboot and every loader of this core: MCUboot owns the 64 KB internal flash, the program
- * slot and the HMI store live in external flash; the store follows the slot so no flash size is assumed.
+ * Flash layout shared by the network bootloader and every loader of this core (docs/network-bootloader.md and
+ * variants/stm32h7s7_core_common/stm32h7rs_boot.h): the bootloader and the network settings sector fill the 64 KB
+ * internal flash; the program slot and the HMI store live in external flash, the store right after the slot.
+ * The RAM mailbox shared with the bootloader sits at the top of AXI SRAM, outside the program's RAM.
  */
 
 / {
-	chosen {
-		zephyr,boot-mode = &boot_mode0;
-	};
-
-	sram_retained: memory@24071f00 {
+	boot_mailbox: memory@24071f00 {
 		compatible = "zephyr,memory-region", "mmio-sram";
 		reg = <0x24071f00 0x100>;
-		zephyr,memory-region = "RetainedMem";
+		zephyr,memory-region = "BootMailbox";
 		status = "okay";
-
-		retainedmem0: retainedmem {
-			compatible = "zephyr,retained-ram";
-			#address-cells = <1>;
-			#size-cells = <1>;
-			status = "okay";
-
-			boot_mode0: boot_mode@0 {
-				compatible = "zephyr,retention";
-				reg = <0x0 0x100>;
-				prefix = [08 04];
-				checksum = <1>;
-				status = "okay";
-			};
-		};
 	};
 };
 
@@ -46,8 +29,14 @@
 
 		boot_partition: partition@0 {
 			compatible = "zephyr,mapped-partition";
-			label = "mcuboot";
-			reg = <0x00000000 0x00010000>;
+			label = "bootloader";
+			reg = <0x00000000 0x0000e000>;
+		};
+
+		netcfg_partition: partition@e000 {
+			compatible = "zephyr,mapped-partition";
+			label = "netcfg";
+			reg = <0x0000e000 0x00002000>;
 		};
 	};
 };

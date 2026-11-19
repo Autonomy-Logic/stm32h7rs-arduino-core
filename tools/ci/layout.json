@@ -12,11 +12,15 @@
   "image": {
     "header_size": "0x00000400"
   },
+  "mailbox": {
+    "size": "0x00000100",
+    "start": "0x24071f00"
+  },
   "partitions": {
     "boot_partition": {
       "device": "flash0",
       "offset": "0x00000000",
-      "size": "0x00010000",
+      "size": "0x0000e000",
       "start": "0x08000000"
     },
     "hmi_store_partition": {
@@ -31,6 +35,12 @@
       "size": "0x00080000",
       "start": "0x70000000"
     },
+    "netcfg_partition": {
+      "device": "flash0",
+      "offset": "0x0000e000",
+      "size": "0x00002000",
+      "start": "0x0800e000"
+    },
     "slot0_partition": {
       "device": "ext_flash",
       "offset": "0x00000000",
@@ -43,12 +53,5 @@
       "size": "0x00780000",
       "start": "0x70080000"
     }
-  },
-  "retention": {
-    "checksum": "yes",
-    "parent": "zephyr,retained-ram",
-    "prefix": "yes",
-    "size": "0x00000100",
-    "start": "0x24071f00"
   }
 }

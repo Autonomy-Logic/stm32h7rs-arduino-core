@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
 import copy
+import io
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -11,6 +14,9 @@ import check_layout as cl  # noqa: E402
 import gen_layout as gl  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+CONTRACT = os.path.join(ROOT, "variants", "stm32h7s7_core_common", "stm32h7rs_boot.h")
+COMMITTED = os.path.join(ROOT, "tools", "ci", "layout.json")
 
 
 def good_layout():
@@ -23,8 +29,12 @@ class GenLayoutTest(unittest.TestCase):
         layout = good_layout()
         parts = layout["partitions"]
         self.assertEqual(parts["boot_partition"]["start"], "0x08000000")
-        self.assertEqual(parts["boot_partition"]["size"], "0x00010000")
+        self.assertEqual(parts["boot_partition"]["size"], "0x0000e000")
         self.assertEqual(parts["boot_partition"]["device"], "flash0")
+        self.assertEqual(parts["netcfg_partition"]["start"], "0x0800e000")
+        self.assertEqual(parts["netcfg_partition"]["offset"], "0x0000e000")
+        self.assertEqual(parts["netcfg_partition"]["size"], "0x00002000")
+        self.assertEqual(parts["netcfg_partition"]["device"], "flash0")
         self.assertEqual(parts["slot0_partition"]["start"], "0x70000000")
         self.assertEqual(parts["slot0_partition"]["device"], "ext_flash")
         self.assertEqual(parts["hmi_store_partition"]["start"], "0x70800000")
@@ -35,24 +45,19 @@ class GenLayoutTest(unittest.TestCase):
         self.assertEqual(layout["devices"]["ext_flash"]["erase_block"], "0x00001000")
         self.assertEqual(layout["devices"]["flash0"]["start"], "0x08000000")
 
-    def test_retention_region(self):
+    def test_mailbox(self):
         layout = good_layout()
-        self.assertEqual(layout["retention"]["start"], "0x24071f00")
-        self.assertEqual(layout["retention"]["size"], "0x00000100")
-        self.assertEqual(layout["retention"]["parent"], "zephyr,retained-ram")
-        self.assertEqual(layout["retention"]["prefix"], "yes")
-        self.assertEqual(layout["retention"]["checksum"], "yes")
+        self.assertEqual(layout["mailbox"], {"start": "0x24071f00", "size": "0x00000100"})
 
-    def test_nested_retention_is_recorded(self):
+    def test_missing_mailbox_node_is_not_recorded(self):
         with open(os.path.join(FIXTURES, "layout_good.dts"), encoding="utf-8") as handle:
-            text = handle.read()
-        nested = text.replace(
-            "\t\t\tboot_mode0: boot_mode@0 {",
-            "\t\t\tretention0: retention@0 {\n\t\t\t\tcompatible = \"zephyr,retention\";\n"
-            "\t\t\t\treg = < 0x0 0x100 >;\n\t\t\tboot_mode0: boot_mode@0 {",
-        ).replace("\t\t\t};\n\t\t};\n\t};\n};", "\t\t\t};\n\t\t\t};\n\t\t};\n\t};\n};")
-        layout = gl.layout_from_dts(nested)
-        self.assertEqual(layout["retention"]["parent"], "zephyr,retention")
+            text = handle.read().replace("boot_mailbox: memory@24071f00", "other: memory@24071f00")
+        self.assertNotIn("mailbox", gl.layout_from_dts(text))
+
+    def test_committed_layout_matches_generator_output_for_the_loader_shape(self):
+        layout = with_loader(good_layout())
+        with open(COMMITTED, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), gl.dumps(layout))
 
     def test_trailing_source_comments_are_ignored(self):
         text = (
@@ -139,14 +144,33 @@ class CheckLayoutTest(unittest.TestCase):
 
     def test_boot_partition_must_be_exact(self):
         layout = copy.deepcopy(good_layout())
-        layout["partitions"]["boot_partition"]["size"] = "0x0000e000"
+        layout["partitions"]["boot_partition"]["size"] = "0x00010000"
         errors = cl.check(layout)
         self.assertTrue(any("boot_partition" in e for e in errors), errors)
 
-    def test_second_internal_partition_fails(self):
+    def test_netcfg_partition_must_be_exact(self):
+        layout = copy.deepcopy(good_layout())
+        layout["partitions"]["netcfg_partition"]["offset"] = "0x0000c000"
+        layout["partitions"]["netcfg_partition"]["start"] = "0x0800c000"
+        errors = cl.check(layout)
+        self.assertTrue(any("netcfg_partition" in e for e in errors), errors)
+
+    def test_missing_netcfg_partition_fails(self):
+        layout = copy.deepcopy(good_layout())
+        del layout["partitions"]["netcfg_partition"]
+        errors = cl.check(layout)
+        self.assertTrue(any("netcfg_partition" in e for e in errors), errors)
+
+    def test_netcfg_on_another_device_fails(self):
+        layout = copy.deepcopy(good_layout())
+        layout["partitions"]["netcfg_partition"]["device"] = "ext_flash"
+        errors = cl.check(layout)
+        self.assertTrue(any("same internal flash" in e for e in errors), errors)
+
+    def test_third_internal_partition_fails(self):
         layout = copy.deepcopy(good_layout())
         layout["partitions"]["storage_partition"] = {
-            "device": "flash0", "offset": "0x0000e000", "start": "0x0800e000", "size": "0x00002000",
+            "device": "flash0", "offset": "0x0000c000", "start": "0x0800c000", "size": "0x00002000",
         }
         errors = cl.check(layout)
         self.assertTrue(any("storage_partition" in e for e in errors), errors)
@@ -172,38 +196,46 @@ class CheckLayoutTest(unittest.TestCase):
         errors = cl.check(layout)
         self.assertTrue(any("slot0_partition" in e for e in errors), errors)
 
-    def test_retention_under_another_retention_node_fails(self):
+    def test_mailbox_at_wrong_address_fails(self):
         layout = copy.deepcopy(good_layout())
-        layout["retention"]["parent"] = "zephyr,retention"
-        self.assertTrue(any("retained-ram" in e for e in cl.check(layout)))
+        layout["mailbox"]["start"] = "0x24071e00"
+        self.assertTrue(any("mailbox" in e for e in cl.check(layout)))
 
-    def test_retention_without_checksum_fails(self):
+    def test_mailbox_with_wrong_size_fails(self):
         layout = copy.deepcopy(good_layout())
-        layout["retention"]["checksum"] = "no"
-        self.assertTrue(any("checksum" in e for e in cl.check(layout)))
+        layout["mailbox"]["size"] = "0x00000080"
+        self.assertTrue(any("mailbox" in e for e in cl.check(layout)))
+
+    def test_missing_mailbox_fails(self):
+        layout = copy.deepcopy(good_layout())
+        del layout["mailbox"]
+        self.assertTrue(any("mailbox" in e for e in cl.check(layout)))
 
     def test_compare_finds_slot_difference(self):
         a = good_layout()
         b = copy.deepcopy(a)
         b["partitions"]["slot0_partition"]["size"] = "0x00080000"
-        errors = cl.compare({"mcuboot": a, "loader": b})
+        errors = cl.compare({"ext_flash_app": a, "sl_visu_5r": b})
         self.assertTrue(any("slot0_partition" in e for e in errors), errors)
 
     def test_compare_ignores_loader_only_partitions(self):
         a = good_layout()
         b = with_loader(a)
-        self.assertEqual(cl.compare({"mcuboot": a, "loader": b}), [])
+        self.assertEqual(cl.compare({"ext_flash_app": a, "sl_visu_5r": b}), [])
 
-    def test_compare_finds_retention_difference(self):
+    def test_compare_finds_netcfg_difference(self):
         a = good_layout()
         b = copy.deepcopy(a)
-        b["retention"]["start"] = "0x24071e00"
-        self.assertTrue(cl.compare({"mcuboot": a, "loader": b}))
+        b["partitions"]["netcfg_partition"]["size"] = "0x00001000"
+        errors = cl.compare({"ext_flash_app": a, "sl_visu_5r": b})
+        self.assertTrue(any("netcfg_partition" in e for e in errors), errors)
 
-    def test_missing_retention_fails(self):
-        layout = copy.deepcopy(good_layout())
-        del layout["retention"]
-        self.assertTrue(cl.check(layout))
+    def test_compare_finds_mailbox_difference(self):
+        a = good_layout()
+        b = copy.deepcopy(a)
+        b["mailbox"]["start"] = "0x24071e00"
+        errors = cl.compare({"ext_flash_app": a, "sl_visu_5r": b})
+        self.assertTrue(any("mailbox" in e for e in errors), errors)
 
     def test_freshness_detects_difference(self):
         layout = good_layout()
@@ -211,6 +243,68 @@ class CheckLayoutTest(unittest.TestCase):
         stale["partitions"]["slot0_partition"]["size"] = "0x00400000"
         self.assertFalse(cl.same(gl.dumps(layout), gl.dumps(stale)))
         self.assertTrue(cl.same(gl.dumps(layout), gl.dumps(copy.deepcopy(layout))))
+
+
+def contract():
+    with open(CONTRACT, encoding="utf-8") as handle:
+        return cl.parse_contract(handle.read())
+
+
+class ContractTest(unittest.TestCase):
+    def test_parse_contract_reads_hex_and_decimal_literals(self):
+        values = cl.parse_contract(
+            "#define STM32H7RS_BOOT_BASE           0x08000000u\n"
+            "#define STM32H7RS_NETCFG_WRITE_BLOCK  32u\n"
+            "#define STM32H7RS_IMAGE_MIN_SIZE      (STM32H7RS_IMAGE_HEADER_SIZE + 8u)\n"
+            "#define OTHER_VALUE 0x1u\n"
+        )
+        self.assertEqual(values, {"BOOT_BASE": 0x08000000, "NETCFG_WRITE_BLOCK": 32})
+
+    def test_real_contract_matches_loader_layout(self):
+        self.assertEqual(cl.check_contract(with_loader(good_layout()), contract()), [])
+
+    def test_real_contract_matches_committed_layout(self):
+        with open(COMMITTED, encoding="utf-8") as handle:
+            committed = cl.json.loads(handle.read())
+        self.assertEqual(cl.check_contract(committed, contract()), [])
+
+    def test_each_contract_value_is_checked(self):
+        for name in (
+            "BOOT_BASE", "BOOT_SIZE", "NETCFG_ADDR", "NETCFG_SECTOR_SIZE", "SLOT_BASE", "SLOT_SIZE",
+            "MAILBOX_ADDR", "MAILBOX_SIZE", "IMAGE_HEADER_SIZE", "EXT_ERASE_SIZE",
+        ):
+            values = contract()
+            values[name] += 0x100
+            errors = cl.check_contract(with_loader(good_layout()), values)
+            self.assertTrue(any(f"STM32H7RS_{name} " in e for e in errors), (name, errors))
+
+    def test_missing_contract_value_fails(self):
+        values = contract()
+        del values["MAILBOX_ADDR"]
+        errors = cl.check_contract(with_loader(good_layout()), values)
+        self.assertTrue(any("STM32H7RS_MAILBOX_ADDR is missing" in e for e in errors), errors)
+
+    def test_layout_without_header_size_fails(self):
+        errors = cl.check_contract(good_layout(), contract())
+        self.assertTrue(any("IMAGE_HEADER_SIZE" in e for e in errors), errors)
+
+    def test_command_line_contract_check(self):
+        with open(CONTRACT, encoding="utf-8") as handle:
+            text = handle.read()
+        changed = text.replace("STM32H7RS_SLOT_SIZE           0x00800000u", "STM32H7RS_SLOT_SIZE           0x00400000u")
+        self.assertNotEqual(text, changed)
+        with tempfile.TemporaryDirectory() as tmp:
+            layout_path = os.path.join(tmp, "layout.json")
+            header_path = os.path.join(tmp, "stm32h7rs_boot.h")
+            with open(layout_path, "w", encoding="utf-8") as handle:
+                handle.write(gl.dumps(with_loader(good_layout())))
+            with open(header_path, "w", encoding="utf-8") as handle:
+                handle.write(changed)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(cl.main([layout_path, "--contract", CONTRACT]), 0)
+                self.assertEqual(cl.main([layout_path, "--contract", header_path]), 1)
+            self.assertIn("STM32H7RS_SLOT_SIZE", out.getvalue())
 
 
 if __name__ == "__main__":

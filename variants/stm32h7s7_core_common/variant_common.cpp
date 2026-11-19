@@ -3,16 +3,17 @@
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/retention/bootmode.h>
-#include <zephyr/sys/reboot.h>
 
-/** 1200 bps request on the USB serial port: reboot into MCUboot serial recovery through the retained boot mode. */
+/* Restarts into the network bootloader for an upload (loader/stm32h7rs_netboot.c). */
+extern "C" void stm32h7rs_request_bootloader(void);
+
+/** 1200 bps request on the USB serial port: restart into the network bootloader for an upload. */
 void _on_1200_bps() {
-	bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
-	sys_reboot(SYS_REBOOT_WARM);
+	stm32h7rs_request_bootloader();
 }
 
-/** Runs after each loop(): yields one tick so the lower-priority network and USB threads get CPU time. */
+/** Runs after each loop(): yields one tick so the lower-priority network and USB threads get CPU
+ * time. */
 void __loopHook(void) {
 	k_sleep(K_TICKS(1));
 }

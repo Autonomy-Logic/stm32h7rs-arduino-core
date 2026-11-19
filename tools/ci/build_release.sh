@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: Apache-2.0
-# Assembles a release directory: core archive, tool archives, MCUboot binary, documents, index and SHA-256 list.
+# Assembles a release directory: core archive, tool archives, network bootloader binaries, documents, index and SHA-256 list.
 # Run from the core root after bootloader/build.sh and extra/build.sh for every board of the core.
 # Usage: tools/ci/build_release.sh <version> <base-url> [<output dir>]
 
@@ -32,9 +32,12 @@ for entry in $GOHOSTS; do
 done
 rm -rf "$STAGE"
 
-cp build/mcuboot/zephyr/zephyr.bin "$OUT/mcuboot-stm32h7s7-$VERSION.bin"
-cp build/mcuboot/zephyr/zephyr.hex "$OUT/mcuboot-stm32h7s7-$VERSION.hex"
-for doc in docs/mcuboot-install-requirement.md docs/lab-test-guide.md; do
+for dir in build/bootloader/*/; do
+	device=$(basename "$dir")
+	cp "$dir/bootloader.bin" "$OUT/bootloader-$device-$VERSION.bin"
+	cp "$dir/bootloader.hex" "$OUT/bootloader-$device-$VERSION.hex"
+done
+for doc in docs/network-bootloader.md docs/bootloader-install-requirement.md docs/lab-test-guide.md; do
 	[ -f "$doc" ] && cp "$doc" "$OUT/"
 done
 

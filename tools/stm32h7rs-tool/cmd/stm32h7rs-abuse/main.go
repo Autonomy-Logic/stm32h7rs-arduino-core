@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Command stm32h7rs-abuse runs the lab abuse checks against a unit: crafted MCUboot recovery uploads and Modbus TCP
-// requests. It is a lab tool, never installed with the core.
+// Command stm32h7rs-abuse runs the lab abuse checks against a unit: crafted Modbus TCP requests. It is a lab tool,
+// never installed with the core.
 package main
 
 import (
@@ -16,78 +16,13 @@ import (
 	"time"
 
 	"github.com/Autonomy-Logic/stm32h7rs-arduino-core/tools/stm32h7rs-tool/internal/layout"
-	"github.com/Autonomy-Logic/stm32h7rs-arduino-core/tools/stm32h7rs-tool/internal/port"
-	"github.com/Autonomy-Logic/stm32h7rs-arduino-core/tools/stm32h7rs-tool/internal/smp"
 )
 
-const (
-	modbusPort     = 502
-	responseWait   = 15 * time.Second
-	eraseBlockSize = 64 * 1024
-)
+const modbusPort = layout.ModbusPort
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: stm32h7rs-abuse <smp-image-number|smp-oversize|modbus-reboot|modbus-flood> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: stm32h7rs-abuse <modbus-reboot|modbus-flood> [flags]")
 	os.Exit(2)
-}
-
-func openClient(name string) (*smp.Client, func(), error) {
-	if name == "" {
-		return nil, nil, errors.New("-port is required")
-	}
-	p, err := port.Open(name, responseWait)
-	if err != nil {
-		return nil, nil, err
-	}
-	return smp.NewClient(p), func() { _ = p.Close() }, nil
-}
-
-func runImageNumber(args []string) error {
-	fs := flag.NewFlagSet("smp-image-number", flag.ContinueOnError)
-	portName := fs.String("port", "", "USB serial port of the unit in MCUboot recovery")
-	image := fs.Uint("image", 1, "image number to put in the first upload chunk")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	c, done, err := openClient(*portName)
-	if err != nil {
-		return err
-	}
-	defer done()
-	rc, err := c.FirstChunk(uint32(*image), 4096, make([]byte, 256))
-	if err != nil {
-		return fmt.Errorf("first chunk with image %d: %w", *image, err)
-	}
-	fmt.Printf("first chunk with image %d: device rc=%d\n", *image, rc)
-	images, err := c.State()
-	if err != nil {
-		return fmt.Errorf("image list after the attempt: %w", err)
-	}
-	fmt.Printf("image list after the attempt: %d image(s); the unit still answers\n", len(images))
-	return nil
-}
-
-func runOversize(args []string) error {
-	fs := flag.NewFlagSet("smp-oversize", flag.ContinueOnError)
-	portName := fs.String("port", "", "USB serial port of the unit in MCUboot recovery")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	c, done, err := openClient(*portName)
-	if err != nil {
-		return err
-	}
-	defer done()
-	declared := uint64(layout.SlotSize + eraseBlockSize)
-	rc, err := c.FirstChunk(0, declared, make([]byte, 256))
-	if err != nil {
-		return fmt.Errorf("oversize upload start: %w", err)
-	}
-	fmt.Printf("upload start declaring %d bytes (slot %d): device rc=%d\n", declared, layout.SlotSize, rc)
-	if rc == 0 {
-		return errors.New("the unit accepted an image larger than the program slot")
-	}
-	return nil
 }
 
 func modbusFrame(tid uint16, pdu []byte) []byte {
@@ -113,22 +48,29 @@ func readModbusReply(conn net.Conn) ([]byte, error) {
 	return pdu, err
 }
 
+func modbusAddr(host string) string { return net.JoinHostPort(host, fmt.Sprint(modbusPort)) }
+
+// rebootRequest sends function code 0x4C with the magic to addr and returns the reply PDU.
+func rebootRequest(addr string) ([]byte, error) {
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(modbusFrame(1, []byte{layout.ModbusFCBootloader, 0xB0, 0x07, 0x10, 0xAD})); err != nil {
+		return nil, err
+	}
+	return readModbusReply(conn)
+}
+
 func runModbusReboot(args []string) error {
 	fs := flag.NewFlagSet("modbus-reboot", flag.ContinueOnError)
 	host := fs.String("host", "", "IP address of the unit")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(*host, fmt.Sprint(modbusPort)), 5*time.Second)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-	if _, err := conn.Write(modbusFrame(1, []byte{0x4C, 0xB0, 0x07, 0x10, 0xAD})); err != nil {
-		return err
-	}
-	pdu, err := readModbusReply(conn)
+	pdu, err := rebootRequest(modbusAddr(*host))
 	if err != nil {
 		fmt.Printf("no reply to function 0x4C: %v\n", err)
 		return nil
@@ -143,8 +85,8 @@ type floodResult struct {
 	err     error
 }
 
-func floodOne(host string, stop time.Time) floodResult {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, fmt.Sprint(modbusPort)), 5*time.Second)
+func floodOne(addr string, stop time.Time) floodResult {
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return floodResult{err: err}
 	}
@@ -183,7 +125,7 @@ func runModbusFlood(args []string) error {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			results[i] = floodOne(*host, stop)
+			results[i] = floodOne(modbusAddr(*host), stop)
 		}(i)
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -204,10 +146,6 @@ func main() {
 	}
 	var err error
 	switch os.Args[1] {
-	case "smp-image-number":
-		err = runImageNumber(os.Args[2:])
-	case "smp-oversize":
-		err = runOversize(os.Args[2:])
 	case "modbus-reboot":
 		err = runModbusReboot(os.Args[2:])
 	case "modbus-flood":

@@ -87,7 +87,7 @@
 	ext_flash_ctrl: xspi-nor-flash@0 {
 		compatible = "st,stm32-xspi-nor";
 		reg = <0>;
-		size = <DT_SIZE_M(1024)>; /* 1 Gbit window: MCUboot maps it once for every device; variants set the real size */
+		size = <DT_SIZE_M(1024)>; /* 1 Gbit window for every device; variants set the real size */
 		ospi-max-frequency = <DT_FREQ_M(50)>;
 		spi-bus-width = <XSPI_OCTO_MODE>;
 		data-rate = <XSPI_DTR_TRANSFER>;

@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Arduino mapping shared by every STM32H7S7 variant: USB CDC ACM as Serial, the loader and sketch partitions inside
- * MCUboot slot 0, and every GPIO as an Arduino pin numbered port index x 16 + pin (A=0..H=7, M=8, N=9, O=10, P=11).
+ * the program slot, and every GPIO as an Arduino pin numbered port index x 16 + pin (A=0..H=7, M=8, N=9, O=10, P=11).
  */
 
 &zephyr_udc0 {

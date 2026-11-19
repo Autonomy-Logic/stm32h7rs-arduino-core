@@ -42,6 +42,16 @@ config ARDUINO_STM32_DISPLAY_HAL
 	  Lets a sketch or board HAL drive the LTDC display controller and the DMA2D engine with
 	  ST's HAL, so panel set-up stays outside the core.
 
+config ARDUINO_STM32H7RS_NETBOOT
+	bool "Program side of the STM32H7S7 network bootloader"
+	depends on SOC_SERIES_STM32H7RSX
+	select FLASH
+	select CRC
+	help
+	  Refreshes the watchdog the network bootloader arms, clears its start-up strike count once the
+	  program has run for a while, restarts into the bootloader on request and stores the network
+	  settings the bootloader uses (docs/network-bootloader.md).
+
 config ARDUINO_ENTRY
 	bool "Provide arduino setup and loop entry points"
 	default y
