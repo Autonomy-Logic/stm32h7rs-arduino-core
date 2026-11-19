@@ -68,6 +68,11 @@ public:
 		return begin(nullptr, ip, dns, gateway, subnet);
 	}
 
+	/** Copies the interface MAC address into mac (6 bytes); the Arduino Ethernet library name. */
+	void macAddress(uint8_t *mac) {
+		MACAddress(mac);
+	}
+
 	void setRetransmissionTimeout(uint16_t milliseconds);
 	void setRetransmissionCount(uint8_t num);
 };

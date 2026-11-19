@@ -95,7 +95,7 @@ jobs:
         env:
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-          PINNED_CORE_VERSION: 0.2.0
+          PINNED_CORE_VERSION: 0.2.1
         run: |
           extra/build.sh stm32h7s7
           extra/build.sh sl_visu_5r
@@ -141,14 +141,14 @@ jobs:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
           source venv/bin/activate
-          tools/ci/build_release.sh 0.2.0 http://127.0.0.1:8765 distrib/rehearsal
+          tools/ci/build_release.sh 0.2.1 http://127.0.0.1:8765 distrib/rehearsal
           (cd distrib/rehearsal && python3 -m http.server 8765 >/dev/null 2>&1 &)
           sleep 2
           export ARDUINO_DIRECTORIES_DATA=$RUNNER_TEMP/fresh/data ARDUINO_DIRECTORIES_USER=$RUNNER_TEMP/fresh/user
           export ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS=http://127.0.0.1:8765/package_AutonomyLogic_stm32h7rs_index.json
           A=$GITHUB_WORKSPACE/arduino/bin/arduino-cli
           $A core update-index
-          $A core install AutonomyLogic:zephyr_h7rs@0.2.0
+          $A core install AutonomyLogic:zephyr_h7rs@0.2.1
           for b in stm32h7s7 sl_visu_5r; do
             $A compile -b AutonomyLogic:zephyr_h7rs:$b --output-dir $RUNNER_TEMP/rehearsal-$b tools/ci/sketches/blink
             build/bootloader-tests/bootloader_tests $RUNNER_TEMP/rehearsal-$b/blink.ino.image.bin
