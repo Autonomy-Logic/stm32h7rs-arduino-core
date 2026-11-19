@@ -5,12 +5,11 @@ external octal NOR flash. It is MCU-level: device-specific behaviour lives in ea
 and only what Zephyr itself must drive (Ethernet, bus pins, PSRAM mode) goes in a small per-device variant. Its first
 device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concept and may be removed when it ends.
 
-- Board: `boards/autonomylogic/stm32h7s7_core/`. Flash layout: `stm32h7s7_core_flash_layout.dtsi` (MCUboot in the
-  64 KB internal flash; program slot and HMI store in external flash).
-- Bootloader: standard MCUboot, configured in `bootloader/` and built with `bootloader/build.sh`; recovery is entered
-  by the 1200 bps request or when no valid program exists.
-- Signing key: `bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem` is a **development key**: it proves integrity, not
-  authenticity, and is for the proof of concept only, never for production (see `bootloader/keys/README.md`).
+- Board: `boards/autonomylogic/stm32h7s7_core/`. Flash layout: `stm32h7s7_core_flash_layout.dtsi` (network
+  bootloader and network settings in the 64 KB internal flash; program slot and HMI store in external flash).
+- Bootloader: a small bare-metal network bootloader in `bootloader/` (built with `bootloader/build.sh`, one image per
+  device in `bootloader/devices/`). It receives programs over Ethernet (TFTP) and is described in
+  `docs/network-bootloader.md`. It has no authentication: this is a proof of concept.
 - No vendor firmware source code is included; the board files use only published hardware facts.
 
 ## Boards
@@ -20,10 +19,12 @@ device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concep
 | `AutonomyLogic:zephyr_h7rs:stm32h7s7` | Any STM32H7S7 with octal NOR on XSPI2 (MCU-level features only) | `stm32h7s7_core_stm32h7s7xx_ext_flash_app` |
 | `AutonomyLogic:zephyr_h7rs:sl_visu_5r` | Synergy Logic SL-VISU-5R (adds Ethernet, `Wire` on I2C1, `Serial1` on USART3, PSRAM) | `stm32h7s7_core_stm32h7s7xx_sl_visu_5r` |
 
-- Sketches link statically against a prebuilt loader. The build merges loader and sketch into one image and signs it
-  for MCUboot (`{sketch}.signed.bin`); the loader occupies the first 512 KB of the program slot, the sketch the rest.
-- Arduino pin = port index x 16 + pin (A=0 ... H=7, M=8, N=9, O=10, P=11), e.g. PE1 is pin 65. `Serial` is USB.
-- A 1200 bps open of `Serial` reboots into MCUboot recovery for the next upload.
+- Sketches link statically against a prebuilt loader. The build merges loader and sketch into one image and adds the
+  1 KB image header (`{sketch}.image.bin`); the loader occupies the first 512 KB of the program slot, the sketch the
+  rest.
+- Arduino pin = port index x 16 + pin (A=0 ... H=7, M=8, N=9, O=10, P=11), e.g. PE1 is pin 65. `Serial` is USB (not
+  fitted on current SL-VISU-5R units), `Serial1` the USART3 console.
+- `Ethernet.begin()` also stores its settings for the bootloader, which uses the same address for the next upload.
 - `EthernetServer` serves up to 3 clients at once; a 4th connection is accepted and closed.
 - The Ethernet MAC is derived from the chip's unique ID by Zephyr; `Ethernet.begin(mac, ...)` keeps it.
 - ST's LTDC and DMA2D HAL are built into the loader for device HALs; no display is configured by the core.
@@ -35,10 +36,12 @@ device is the Synergy Logic SL-VISU-5R panel. It exists for that proof of concep
 - Board manager URL (one per release):
   `https://github.com/Autonomy-Logic/stm32h7rs-arduino-core/releases/download/v<version>/package_AutonomyLogic_stm32h7rs_index.json`,
   then install `AutonomyLogic:zephyr_h7rs`.
-- A unit needs MCUboot once (`docs/mcuboot-install-requirement.md`). After that, uploads go over USB: the build
-  produces `{sketch}.signed.bin` and `stm32h7rs-tool upload` sends it to MCUboot serial recovery.
-- Recovery is entered by the 1200 bps request the upload makes, or automatically when no valid program is installed.
-- `tools/stm32h7rs-tool`: `merge`, `sign`, `upload`, `list`, `reset`; `stm32h7rs-abuse` holds the lab abuse checks
+- A unit needs the network bootloader once, installed with an SWD probe (`docs/bootloader-install-requirement.md`).
+  After that, uploads go over Ethernet: `arduino-cli upload --port <device IP>` runs `stm32h7rs-tool upload`, which
+  asks the running program to restart into the bootloader, sends `{sketch}.image.bin` over TFTP and checks that the
+  new program answers.
+- The bootloader also stays when no valid program is installed or the program keeps restarting.
+- `tools/stm32h7rs-tool`: `merge`, `pack`, `upload`, `info`; `stm32h7rs-abuse` holds the lab abuse checks
   (`docs/lab-test-guide.md`). Releases are built by `.github/workflows/release.yml` from a `v*` tag on `main`.
 
 The original upstream README follows.

@@ -572,6 +572,11 @@ FORCE_EXPORT_SYM(bootmode_set);
 FORCE_EXPORT_SYM(sys_reboot);
 #endif
 
+#if defined(CONFIG_ARDUINO_STM32H7RS_NETBOOT)
+FORCE_EXPORT_SYM(stm32h7rs_request_bootloader);
+FORCE_EXPORT_SYM(stm32h7rs_netcfg_store);
+#endif
+
 #if defined(CONFIG_ARDUINO_STM32_DISPLAY_HAL)
 #include <soc.h>
 EXPORT_SYMBOL(HAL_LTDC_Init);

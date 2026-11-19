@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Checks a loader .config: limited network features, nothing configured at boot, network below the sketch thread."""
+"""Checks a loader .config: network bootloader support, limited network features, nothing configured at boot,
+network threads below the sketch thread."""
 
 import sys
 from typing import Dict, List
 
-from check_mcuboot_config import parse_config
+
+BOOT_REQUIRED_ENABLED = ("CONFIG_ARDUINO_STM32H7RS_NETBOOT",)
+BOOT_REQUIRED_VALUES = (("CONFIG_ROM_START_OFFSET", 0x400),)
+BOOT_FORBIDDEN = ("CONFIG_BOOTLOADER_MCUBOOT", "CONFIG_RETENTION_BOOT_MODE")
 
 NETWORK_REQUIRED = ("CONFIG_NET_IPV4", "CONFIG_NET_TCP", "CONFIG_NET_UDP", "CONFIG_NET_DHCPV4")
 
@@ -41,6 +45,18 @@ ETH_FLAG = "CONFIG_ETH_STM32_HAL_RX_THREAD_PREEMPTIVE"
 ETH_PRIORITY = "CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO"
 
 
+def parse_config(text: str) -> Dict[str, str]:
+    """Parses a Kconfig .config into a symbol to value map, skipping unset symbols."""
+    values: Dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
 def _enabled(config: Dict[str, str], symbol: str) -> bool:
     return config.get(symbol) == "y"
 
@@ -53,8 +69,17 @@ def _int(config: Dict[str, str], symbol: str) -> int:
 
 
 def check(config: Dict[str, str]) -> List[str]:
-    """Returns every network-feature and thread-priority rule the loader configuration breaks."""
+    """Returns every boot, network-feature and thread-priority rule the loader configuration breaks."""
     errors: List[str] = []
+    for symbol in BOOT_REQUIRED_ENABLED:
+        if not _enabled(config, symbol):
+            errors.append(f"{symbol} must be y")
+    for symbol, want in BOOT_REQUIRED_VALUES:
+        if _int(config, symbol) != want:
+            errors.append(f"{symbol} must be 0x{want:x}, got '{config.get(symbol, '')}'")
+    for symbol in BOOT_FORBIDDEN:
+        if _enabled(config, symbol):
+            errors.append(f"{symbol} must not be set")
     for symbol in ALWAYS_FORBIDDEN:
         if _enabled(config, symbol):
             errors.append(f"{symbol} must not be set")
@@ -95,7 +120,7 @@ def main(argv: List[str]) -> int:
         print(f"FAIL: {error}")
     if errors:
         return 1
-    print("OK: loader network features and thread priorities meet SR-03 and SR-05")
+    print("OK: loader boot settings, network features and thread priorities meet the rules")
     return 0
 
 

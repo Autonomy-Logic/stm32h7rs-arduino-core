@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * External-flash target: the generic program image MCUboot starts from slot 0 (XIP at 0x70000000).
+ * External-flash target: the generic program image the network bootloader starts from slot 0 (XIP at 0x70000000).
  */
 
 #include "stm32h7s7_core_common.dtsi"

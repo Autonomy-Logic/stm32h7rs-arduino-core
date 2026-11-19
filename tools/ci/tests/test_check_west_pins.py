@@ -36,7 +36,7 @@ class CheckWestPinsTest(unittest.TestCase):
 
     def test_parse_projects(self):
         projects = cwp.parse_projects(read("west_resolved_good.yml"))
-        self.assertEqual([p[0] for p in projects], ["zephyr", "mcuboot", "hal_stm32"])
+        self.assertEqual([p[0] for p in projects], ["zephyr", "cmsis_6", "hal_stm32"])
 
 
 if __name__ == "__main__":

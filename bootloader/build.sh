@@ -1,18 +1,32 @@
 #!/bin/bash
 # SPDX-License-Identifier: Apache-2.0
-# Builds MCUboot for the STM32H7S7 core into build/mcuboot (zephyr.bin, zephyr.map, .config, zephyr.dts).
+# Copyright (c) Autonomy Logic
+# Builds the network bootloader of every device in bootloader/devices (or the devices named as arguments) into
+# build/bootloader/<device>/bootloader.{elf,bin,hex,map}, then runs the host tests.
+# Needs the west workspace (modules/hal/stm32, modules/hal/cmsis*) and ZEPHYR_SDK_INSTALL_DIR.
 
 set -euo pipefail
 
 CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WS_DIR="$(cd "${CORE_DIR}/.." && pwd)"
-BUILD_DIR="${BUILD_DIR:-${CORE_DIR}/build/mcuboot}"
-KEY_FILE="${CORE_DIR}/bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem"
+CROSS="${ZEPHYR_SDK_INSTALL_DIR:?set ZEPHYR_SDK_INSTALL_DIR}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-"
+HAL_DIR="${WS_DIR}/modules/hal/stm32/stm32cube/stm32h7rsxx"
+CMSIS_DIR="${WS_DIR}/modules/hal/cmsis_6/CMSIS/Core"
+[ -d "${CMSIS_DIR}" ] || CMSIS_DIR="${WS_DIR}/modules/hal/cmsis/CMSIS/Core"
 
-west build -p always -b stm32h7s7_core -d "${BUILD_DIR}" "${WS_DIR}/bootloader/mcuboot/boot/zephyr" -- \
-	-DBOARD_ROOT="${CORE_DIR}" \
-	-DEXTRA_CONF_FILE="${CORE_DIR}/bootloader/mcuboot.conf;${CORE_DIR}/bootloader/usb_id.conf" \
-	-DEXTRA_DTC_OVERLAY_FILE="${CORE_DIR}/bootloader/mcuboot.overlay" \
-	-DCONFIG_BOOT_SIGNATURE_KEY_FILE=\""${KEY_FILE}"\"
+if [ $# -gt 0 ]; then
+	DEVICES=("$@")
+else
+	DEVICES=()
+	for mk in "${CORE_DIR}"/bootloader/devices/*.mk; do
+		DEVICES+=("$(basename "${mk}" .mk)")
+	done
+fi
 
-echo "MCUboot output: ${BUILD_DIR}/zephyr"
+for device in "${DEVICES[@]}"; do
+	make -C "${CORE_DIR}/bootloader" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)" DEVICE="${device}" CROSS="${CROSS}" \
+		HAL_DIR="${HAL_DIR}" CMSIS_DIR="${CMSIS_DIR}" OUT="${CORE_DIR}/build/bootloader/${device}"
+	echo "Bootloader output: ${CORE_DIR}/build/bootloader/${device}"
+done
+
+make -C "${CORE_DIR}/bootloader/tests" check-c

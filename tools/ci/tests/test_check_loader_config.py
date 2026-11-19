@@ -7,7 +7,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import check_loader_config as clc  # noqa: E402
-from check_mcuboot_config import parse_config  # noqa: E402
+from check_loader_config import parse_config  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -15,6 +15,39 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 def good():
     with open(os.path.join(FIXTURES, "loader_good.config"), encoding="utf-8") as handle:
         return parse_config(handle.read())
+
+
+class ParseConfigTest(unittest.TestCase):
+    def test_unset_and_blank_lines_are_skipped(self):
+        config = parse_config("# CONFIG_A is not set\n\nCONFIG_B=y\nCONFIG_C=\"x=y\"\n")
+        self.assertEqual(config, {"CONFIG_B": "y", "CONFIG_C": "\"x=y\""})
+
+
+class BootSettingsTest(unittest.TestCase):
+    def test_missing_netboot_fails(self):
+        config = good()
+        del config["CONFIG_ARDUINO_STM32H7RS_NETBOOT"]
+        self.assertTrue(any("CONFIG_ARDUINO_STM32H7RS_NETBOOT" in e for e in clc.check(config)))
+
+    def test_wrong_rom_start_offset_fails(self):
+        config = good()
+        config["CONFIG_ROM_START_OFFSET"] = "0x200"
+        self.assertTrue(any("CONFIG_ROM_START_OFFSET" in e for e in clc.check(config)))
+
+    def test_missing_rom_start_offset_fails(self):
+        config = good()
+        del config["CONFIG_ROM_START_OFFSET"]
+        self.assertTrue(any("CONFIG_ROM_START_OFFSET" in e for e in clc.check(config)))
+
+    def test_chain_loaded_image_flag_fails(self):
+        config = good()
+        config["CONFIG_BOOTLOADER_MCUBOOT"] = "y"
+        self.assertTrue(any("CONFIG_BOOTLOADER_MCUBOOT" in e for e in clc.check(config)))
+
+    def test_retention_boot_mode_fails(self):
+        config = good()
+        config["CONFIG_RETENTION_BOOT_MODE"] = "y"
+        self.assertTrue(any("CONFIG_RETENTION_BOOT_MODE" in e for e in clc.check(config)))
 
 
 class NetworkFeaturesTest(unittest.TestCase):
@@ -41,8 +74,12 @@ class NetworkFeaturesTest(unittest.TestCase):
         config["CONFIG_SHELL"] = "y"
         self.assertTrue(any("CONFIG_SHELL" in e for e in clc.check(config)))
 
-    def test_without_networking_only_the_shell_rule_applies(self):
-        config = {"CONFIG_MAIN_THREAD_PRIORITY": "2"}
+    def test_without_networking_no_network_rule_applies(self):
+        config = {
+            "CONFIG_MAIN_THREAD_PRIORITY": "2",
+            "CONFIG_ARDUINO_STM32H7RS_NETBOOT": "y",
+            "CONFIG_ROM_START_OFFSET": "0x400",
+        }
         self.assertEqual(clc.check(config), [])
 
 

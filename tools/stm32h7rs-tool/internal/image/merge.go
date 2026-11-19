@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Package image builds the single program image MCUboot validates: the loader, 0xFF padding up to the sketch
-// offset, then the prelinked sketch.
+// Package image builds and checks the program image the network bootloader accepts: the loader, 0xFF padding up to
+// the sketch offset and the prelinked sketch, with the image header in the first bytes the loader leaves empty.
 package image
 
 import (

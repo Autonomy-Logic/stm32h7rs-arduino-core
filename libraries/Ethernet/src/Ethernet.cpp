@@ -16,6 +16,12 @@
 /* Internal Zephyr entry point for initializing network interfaces, not visible here. */
 extern "C" void net_if_init(void);
 
+#if defined(CONFIG_ARDUINO_STM32H7RS_NETBOOT)
+/* Stores the settings the network bootloader uses (loader/stm32h7rs_netboot.c). */
+extern "C" int stm32h7rs_netcfg_store(int dhcp, uint32_t ip, uint32_t netmask, uint32_t gateway,
+									  uint32_t dns);
+#endif
+
 static inline int init_eth_clock() {
 	if (!DT_HAS_CHOSEN(arduino_eth_clock)) {
 		return 0;
@@ -40,6 +46,9 @@ int EthernetClass::begin(uint8_t *mac, unsigned long timeout, unsigned long resp
 	}
 #if !defined(CONFIG_ARDUINO_ETHERNET_KEEP_DRIVER_MAC)
 	setMACAddress(mac);
+#endif
+#if defined(CONFIG_ARDUINO_STM32H7RS_NETBOOT)
+	(void)stm32h7rs_netcfg_store(1, 0u, 0u, 0u, 0u);
 #endif
 	return NetworkInterface::begin();
 }
@@ -81,6 +90,10 @@ int EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress ga
 	setMACAddress(mac);
 #endif
 	config(ip, dns, gateway, subnet);
+#if defined(CONFIG_ARDUINO_STM32H7RS_NETBOOT)
+	(void)stm32h7rs_netcfg_store(0, (uint32_t)ip, (uint32_t)subnet, (uint32_t)gateway,
+								 (uint32_t)dns);
+#endif
 	return 1;
 }
 

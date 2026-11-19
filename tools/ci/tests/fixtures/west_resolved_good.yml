@@ -4,12 +4,12 @@ manifest:
     url: https://github.com/arduino/zephyr
     revision: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c
     path: zephyr
-  - name: mcuboot
-    url: https://github.com/zephyrproject-rtos/mcuboot
+  - name: cmsis_6
+    url: https://github.com/zephyrproject-rtos/CMSIS_6
     revision: a3f2c9e1d0b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8
-    path: bootloader/mcuboot
+    path: modules/lib/cmsis_6
     groups:
-    - bootloader
+    - hal
   - name: hal_stm32
     url: https://github.com/zephyrproject-rtos/hal_stm32
     revision: 1111111111111111111111111111111111111111

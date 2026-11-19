@@ -37,9 +37,11 @@ jobs:
         run: |
           go vet ./...
           go test ./...
+      - name: Bootloader host tests (protocol code, and stm32h7rs-tool against the bootloader's TFTP server)
+        run: make -C bootloader/tests check
 
   build:
-    name: MCUboot, loaders and sketches
+    name: Bootloader, loaders and sketches
     runs-on: ubuntu-24.04
     needs: unit-tests
     steps:
@@ -60,21 +62,22 @@ jobs:
         with:
           path: |
             zephyr
-            bootloader
             modules
             zephyr-sdk
           key: west-${{ hashFiles('stm32h7rs-arduino-core/west.yml') }}-sdk-${{ env.ZEPHYR_SDK_VERSION }}
       - name: West workspace
         working-directory: stm32h7rs-arduino-core
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install west imgtool protobuf grpcio-tools jsonschema
+          pip install west protobuf grpcio-tools jsonschema
           [ -d ../.west ] || west init -l .
           west config manifest.project-filter -- "-hal_.*,+hal_stm32"
           west update --narrow -o=--depth=1
           pip install -r ../zephyr/scripts/requirements-base.txt
-          [ -d ../zephyr-sdk ] || west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk
+          [ -d ../zephyr-sdk ] || west sdk install --version $ZEPHYR_SDK_VERSION -t arm-zephyr-eabi --install-dir ../zephyr-sdk --personal-access-token "$GH_TOKEN"
           west blobs fetch arduino-api --auto-accept
       - name: Dependencies pinned by commit
         working-directory: stm32h7rs-arduino-core
@@ -82,24 +85,17 @@ jobs:
           source venv/bin/activate
           west manifest --resolve --active-only > /tmp/resolved.yml
           python3 tools/ci/check_west_pins.py /tmp/resolved.yml
-      - name: Build MCUboot
+      - name: Build the network bootloader (the linker script caps it at 56 KB)
         working-directory: stm32h7rs-arduino-core
         env:
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
-        run: |
-          source venv/bin/activate
-          ./bootloader/build.sh
-      - name: MCUboot configuration and size
-        working-directory: stm32h7rs-arduino-core
-        run: |
-          python3 tools/ci/check_mcuboot_config.py build/mcuboot/zephyr/.config
-          python3 tools/ci/check_mcuboot_size.py --bin build/mcuboot/zephyr/zephyr.bin --map build/mcuboot/zephyr/zephyr.map
+        run: ./bootloader/build.sh
       - name: Build loaders
         working-directory: stm32h7rs-arduino-core
         env:
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-          PINNED_CORE_VERSION: 0.1.0
+          PINNED_CORE_VERSION: 0.2.0
         run: |
           extra/build.sh stm32h7s7
           extra/build.sh sl_visu_5r
@@ -109,7 +105,7 @@ jobs:
           for v in stm32h7s7_core_stm32h7s7xx_ext_flash_app stm32h7s7_core_stm32h7s7xx_sl_visu_5r; do
             python3 tools/ci/check_loader_config.py firmwares/zephyr-$v.config
           done
-      - name: Flash layout agrees between MCUboot, loaders and boards.txt
+      - name: Flash layout agrees between the loaders, the bootloader contract and boards.txt
         working-directory: stm32h7rs-arduino-core
         run: tools/ci/check_all_layouts.sh
       - name: arduino-cli with the working-tree core
@@ -124,51 +120,44 @@ jobs:
         run: |
           arduino/bin/arduino-cli core update-index
           arduino/bin/arduino-cli core install arduino:zephyr_contrib@1.1.0
-      - name: Compile sketches into signed images
+      - name: Compile sketches into program images
         run: |
           props="--build-property build.stm32h7rs_tool=$GITHUB_WORKSPACE/arduino/bin/stm32h7rs-tool"
           s=stm32h7rs-arduino-core/tools/ci/sketches
           arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:stm32h7s7 $props --output-dir out/generic-blink $s/blink
           arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:sl_visu_5r $props --output-dir out/sv5-blink $s/blink
           arduino/bin/arduino-cli compile -b AutonomyLogic:zephyr_h7rs:sl_visu_5r $props --output-dir out/sv5-hal-api $s/sl_visu_5r_hal_api
-      - name: Signed images verify with the development key, a tampered one does not
+      - name: Program images pass the bootloader's image check, a tampered one does not
         run: |
-          source stm32h7rs-arduino-core/venv/bin/activate
-          key=stm32h7rs-arduino-core/bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem
+          check=stm32h7rs-arduino-core/build/bootloader-tests/bootloader_tests
           for d in generic-blink sv5-blink sv5-hal-api; do
-            imgtool verify -k $key out/$d/*.signed.bin
+            $check out/$d/*.image.bin
           done
-          python3 - out/sv5-blink/*.signed.bin <<'EOF'
-          import sys
-          data = bytearray(open(sys.argv[1], "rb").read())
-          data[0x00080000 + 64] ^= 0xFF
-          open("/tmp/tampered.bin", "wb").write(data)
-          EOF
-          if imgtool verify -k $key /tmp/tampered.bin; then echo "tampered image verified"; exit 1; fi
+          python3 -I stm32h7rs-arduino-core/bootloader/tests/tamper.py out/sv5-blink/blink.ino.image.bin /tmp/tampered.bin
+          if $check /tmp/tampered.bin; then echo "tampered image accepted"; exit 1; fi
       - name: Release rehearsal (archive, tools, index; install into an empty arduino-cli and compile)
         working-directory: stm32h7rs-arduino-core
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
         run: |
           source venv/bin/activate
-          tools/ci/build_release.sh 0.1.0 http://127.0.0.1:8765 distrib/rehearsal
+          tools/ci/build_release.sh 0.2.0 http://127.0.0.1:8765 distrib/rehearsal
           (cd distrib/rehearsal && python3 -m http.server 8765 >/dev/null 2>&1 &)
           sleep 2
           export ARDUINO_DIRECTORIES_DATA=$RUNNER_TEMP/fresh/data ARDUINO_DIRECTORIES_USER=$RUNNER_TEMP/fresh/user
           export ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS=http://127.0.0.1:8765/package_AutonomyLogic_stm32h7rs_index.json
           A=$GITHUB_WORKSPACE/arduino/bin/arduino-cli
           $A core update-index
-          $A core install AutonomyLogic:zephyr_h7rs@0.1.0
+          $A core install AutonomyLogic:zephyr_h7rs@0.2.0
           for b in stm32h7s7 sl_visu_5r; do
             $A compile -b AutonomyLogic:zephyr_h7rs:$b --output-dir $RUNNER_TEMP/rehearsal-$b tools/ci/sketches/blink
-            imgtool verify -k bootloader/keys/stm32h7rs-dev-ecdsa-p256.pem $RUNNER_TEMP/rehearsal-$b/blink.ino.signed.bin
+            build/bootloader-tests/bootloader_tests $RUNNER_TEMP/rehearsal-$b/blink.ino.image.bin
           done
       - name: Artefacts
         uses: actions/upload-artifact@v7
         with:
           name: stm32h7s7-core-images
           path: |
-            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.bin
-            stm32h7rs-arduino-core/build/mcuboot/zephyr/zephyr.hex
+            stm32h7rs-arduino-core/build/bootloader/
             stm32h7rs-arduino-core/firmwares/
             out/

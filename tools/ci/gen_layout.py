@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Generates tools/ci/layout.json from a built zephyr.dts: partitions, flash devices and retention region."""
+"""Generates tools/ci/layout.json from a built zephyr.dts: partitions, flash devices and the boot RAM mailbox."""
 
 import argparse
 import json
@@ -8,8 +8,15 @@ import re
 import sys
 from typing import Dict, List, Optional
 
-PARTITION_LABELS = ("boot_partition", "slot0_partition", "hmi_store_partition", "loader_partition", "user_sketch")
-RETENTION_COMPATIBLE = '"zephyr,retention"'
+PARTITION_LABELS = (
+    "boot_partition",
+    "netcfg_partition",
+    "slot0_partition",
+    "hmi_store_partition",
+    "loader_partition",
+    "user_sketch",
+)
+MAILBOX_LABEL = "boot_mailbox"
 
 _NODE = re.compile(r"^((?:[A-Za-z_][\w]*:\s*)*)([^\s{]+)\s*\{$")
 _PROP = re.compile(r"^([#\w,.\-]+)\s*(?:=\s*(.*))?;$")
@@ -88,16 +95,6 @@ def absolute(node: Node, address: int) -> int:
     return address
 
 
-def _boot_mode_node(root: Node, nodes: List[Node]) -> Optional[Node]:
-    """Returns the node chosen as zephyr,boot-mode, else the first zephyr,retention node."""
-    chosen = next((n for n in root.children if n.name == "chosen"), None)
-    label = chosen.props.get("zephyr,boot-mode", "").lstrip("&") if chosen else ""
-    for node in nodes:
-        if label and label in node.labels:
-            return node
-    return next((n for n in nodes if n.props.get("compatible", "") == RETENTION_COMPATIBLE), None)
-
-
 def _hex(value: int) -> str:
     return f"0x{value:08x}"
 
@@ -108,7 +105,7 @@ def layout_from_dts(text: str) -> Dict[str, Dict[str, Dict[str, str]]]:
     nodes = walk(root)
     partitions: Dict[str, Dict[str, str]] = {}
     devices: Dict[str, Dict[str, str]] = {}
-    retention: Optional[Dict[str, str]] = None
+    mailbox: Optional[Dict[str, str]] = None
     for node in nodes:
         label = next((l for l in node.labels if l in PARTITION_LABELS), None)
         if label is not None and node.parent is not None and node.parent.parent is not None:
@@ -130,24 +127,14 @@ def layout_from_dts(text: str) -> Dict[str, Dict[str, Dict[str, str]]]:
                 "start": _hex(flash_start),
                 "erase_block": _hex(erase[0] if erase else 0),
             }
-    boot_mode = _boot_mode_node(root, nodes)
-    if boot_mode is not None and boot_mode.parent is not None:
-        region = boot_mode.parent
-        while region.parent is not None and not region.cells("reg"):
-            region = region.parent
-        region_reg = region.cells("reg")
-        reg = boot_mode.cells("reg")
-        if region_reg and reg:
-            retention = {
-                "start": _hex(absolute(region, region_reg[0]) + reg[0]),
-                "size": _hex(reg[1]),
-                "parent": boot_mode.parent.props.get("compatible", "").strip('"'),
-                "prefix": "yes" if "prefix" in boot_mode.props else "no",
-                "checksum": "yes" if "checksum" in boot_mode.props else "no",
-            }
+    box = next((n for n in nodes if MAILBOX_LABEL in n.labels), None)
+    if box is not None:
+        reg = box.cells("reg")
+        if len(reg) >= 2:
+            mailbox = {"start": _hex(absolute(box, reg[0])), "size": _hex(reg[1])}
     layout: Dict[str, Dict[str, Dict[str, str]]] = {"partitions": partitions, "devices": devices}
-    if retention is not None:
-        layout["retention"] = retention  # type: ignore[assignment]
+    if mailbox is not None:
+        layout["mailbox"] = mailbox  # type: ignore[assignment]
     return layout
 
 
@@ -161,7 +148,7 @@ def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dts", nargs="+")
     parser.add_argument("--out", required=True)
-    parser.add_argument("--header-size", help="MCUboot image header size (CONFIG_ROM_START_OFFSET of the loader)")
+    parser.add_argument("--header-size", help="program image header size (CONFIG_ROM_START_OFFSET of the loader)")
     args = parser.parse_args(argv)
     merged: Dict[str, Dict[str, Dict[str, str]]] = {"partitions": {}, "devices": {}}
     for path in args.dts:
@@ -169,8 +156,8 @@ def main(argv: List[str]) -> int:
             layout = layout_from_dts(handle.read())
         merged["partitions"].update(layout["partitions"])
         merged["devices"].update(layout["devices"])
-        if "retention" in layout:
-            merged["retention"] = layout["retention"]
+        if "mailbox" in layout:
+            merged["mailbox"] = layout["mailbox"]
     if args.header_size:
         merged["image"] = {"header_size": _hex(int(args.header_size, 0))}  # type: ignore[assignment]
     with open(args.out, "w", encoding="utf-8") as handle:
