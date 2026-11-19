@@ -80,8 +80,9 @@ public:
 extern EthernetClass Ethernet;
 
 /**
- * Arduino-style TCP server: available() returns a connected client that has data to read, so a sketch polling it
- * serves several connections; at most ETHERNET_SERVER_MAX_CLIENTS are kept, and a connection beyond that is closed.
+ * Arduino-style TCP server: available() returns a connected client that has data to read, so a
+ * sketch polling it serves several connections; at most ETHERNET_SERVER_MAX_CLIENTS are kept, and a
+ * connection beyond that is closed.
  */
 class EthernetServer : public ZephyrServer {
 public:
