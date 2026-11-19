@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package netflash is the network upload: check the image, hand the device over to its bootloader, write the
 // image over TFTP and optionally check that the new program answers.

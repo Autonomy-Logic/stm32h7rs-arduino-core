@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package boot talks to the STM32H7S7 network bootloader over TFTP, as described in docs/network-bootloader.md.
 package boot

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package fakeboard is a test double for an STM32H7S7 device on local sockets: the running OpenPLC program on
 // Modbus TCP and the network bootloader on TFTP, following docs/network-bootloader.md.

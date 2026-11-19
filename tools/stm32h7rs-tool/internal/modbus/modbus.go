@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package modbus sends the OpenPLC runtime's editor function codes over Modbus TCP: enough to restart a program
 // into the network bootloader and to see that a new program runs. Frames are the ones the OpenPLC Editor sends

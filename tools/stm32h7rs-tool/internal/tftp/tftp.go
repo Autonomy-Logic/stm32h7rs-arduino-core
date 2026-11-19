@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package tftp is a TFTP client (RFC 1350) with option negotiation (RFC 2347) and the blksize and tsize options
 // (RFC 2348, RFC 2349): what the STM32H7S7 network bootloader serves. Octet mode only.

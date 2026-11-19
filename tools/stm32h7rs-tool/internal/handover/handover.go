@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Autonomy Logic
 
 // Package handover gets a device into its network bootloader: when the bootloader does not answer on TFTP, it asks
 // the running OpenPLC runtime (Modbus TCP function code 0x4C) to restart into it and waits for it.
